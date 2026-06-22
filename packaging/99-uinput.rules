@@ -1,0 +1,6 @@
+# Fallback de permisos para /dev/uinput (solo si la ACL de logind no basta,
+# p.ej. si lanzas el daemon fuera de la sesión gráfica).
+# Instala en /etc/udev/rules.d/ y recarga:
+#   sudo cp packaging/99-uinput.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

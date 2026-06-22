@@ -1,0 +1,30 @@
+# Servicio systemd de USUARIO para kwhisper.
+# Instala en: ~/.config/systemd/user/kwhisper.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kwhisper
+#
+# Ajusta ExecStart a la ruta real de tu venv si cambias el proyecto de sitio.
+
+[Unit]
+Description=kwhisper — dictado por voz local (KDE Wayland)
+After=graphical-session.target ydotool.service
+Wants=ydotool.service
+PartOf=graphical-session.target
+# No usamos ConditionEnvironment=WAYLAND_DISPLAY: si Plasma no lo exporta al
+# systemd de usuario, la unidad quedaría "condition failed" en silencio. En su
+# lugar nos acoplamos a graphical-session.target e importamos el entorno abajo.
+# Si hay un error de config, no reintentar en bucle infinito:
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Importa el entorno gráfico al arrancar (el '-' evita abortar si falla):
+ExecStartPre=-/usr/bin/systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR DISPLAY
+ExecStart=%h/Projects/kde/kwhisper/.venv/bin/kwhisper
+Restart=on-failure
+RestartSec=3
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target

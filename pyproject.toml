@@ -1,0 +1,40 @@
+[project]
+name = "kwhisper"
+version = "0.1.0"
+description = "Dictado por voz local estilo Wispr Flow para KDE Plasma 6 (Wayland) — STT con faster-whisper + clasificación dictado/comando con Ollama"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "serjor" }]
+dependencies = [
+    # --- STT (CUDA, Blackwell sm_120: usar float16) ---
+    "faster-whisper>=1.2.1",
+    "ctranslate2>=4.7.0",
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12==9.*",
+    # --- Audio ---
+    "sounddevice",
+    "numpy",
+    # --- Push-to-talk (evdev primario) ---
+    "evdev",
+    # --- LLM (Ollama) ---
+    "httpx",
+    # --- Utilidades ---
+    "pydantic>=2",
+    "platformdirs",
+    "dbus-next",            # fallback: portal GlobalShortcuts (modo toggle)
+    # PySide6 se toma del sistema (pacman) vía venv --system-site-packages.
+    # Si prefieres aislarlo del todo, añade aquí "PySide6==6.11.*" y recrea el venv sin --system-site-packages.
+]
+
+[project.scripts]
+kwhisper = "kwhisper.app:main"
+kwhisper-findkey = "kwhisper.hotkey.findkey:main"
+kwhisper-doctor = "kwhisper.doctor:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kwhisper"]
