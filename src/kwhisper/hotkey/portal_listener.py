@@ -35,6 +35,37 @@ _REQUEST_XML = """<node>
   </interface>
 </node>"""
 
+# Introspección estática de GlobalShortcuts: evita bus.introspect() del objeto
+# portal completo, que en dbus-next revienta al parsear propiedades de otras
+# interfaces con guiones en el nombre (p.ej. 'power-saver-enabled').
+_GLOBALSHORTCUTS_XML = """<node>
+  <interface name="org.freedesktop.portal.GlobalShortcuts">
+    <method name="CreateSession">
+      <arg type="a{sv}" name="options" direction="in"/>
+      <arg type="o" name="handle" direction="out"/>
+    </method>
+    <method name="BindShortcuts">
+      <arg type="o" name="session_handle" direction="in"/>
+      <arg type="a(sa{sv})" name="shortcuts" direction="in"/>
+      <arg type="s" name="parent_window" direction="in"/>
+      <arg type="a{sv}" name="options" direction="in"/>
+      <arg type="o" name="handle" direction="out"/>
+    </method>
+    <signal name="Activated">
+      <arg type="o" name="session_handle"/>
+      <arg type="s" name="shortcut_id"/>
+      <arg type="t" name="timestamp"/>
+      <arg type="a{sv}" name="options"/>
+    </signal>
+    <signal name="Deactivated">
+      <arg type="o" name="session_handle"/>
+      <arg type="s" name="shortcut_id"/>
+      <arg type="t" name="timestamp"/>
+      <arg type="a{sv}" name="options"/>
+    </signal>
+  </interface>
+</node>"""
+
 
 class PortalListener:
     def __init__(self, on_start: Callable[[], None], on_stop: Callable[[], None],
@@ -72,8 +103,8 @@ class PortalListener:
         from dbus_next.constants import BusType
 
         bus = await MessageBus(bus_type=BusType.SESSION).connect()
-        introspection = await bus.introspect(_PORTAL, _PATH)
-        obj = bus.get_proxy_object(_PORTAL, _PATH, introspection)
+        gs_node = intr.Node.parse(_GLOBALSHORTCUTS_XML)
+        obj = bus.get_proxy_object(_PORTAL, _PATH, gs_node)
         gs = obj.get_interface("org.freedesktop.portal.GlobalShortcuts")
 
         token = "kwhisper_create"
@@ -116,9 +147,10 @@ class PortalListener:
             return
 
         # BindShortcuts: registra el atajo (el usuario asigna la tecla en Preferencias).
+        # Nota: dbus-next representa los STRUCT de D-Bus como LISTA, no tupla.
         await gs.call_bind_shortcuts(
             sh,
-            [(_SHORTCUT_ID, {"description": Variant("s", "kwhisper: dictar (toggle)")})],
+            [[_SHORTCUT_ID, {"description": Variant("s", "kwhisper: dictar (toggle)")}]],
             "",
             {},
         )

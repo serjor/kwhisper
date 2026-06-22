@@ -27,12 +27,11 @@ def _ensure_cuda_lib_path() -> None:
     if os.environ.get("KWHISPER_LDPATH_SET"):
         return
     try:
-        import nvidia.cublas.lib  # noqa: PLC0415
-        import nvidia.cudnn.lib  # noqa: PLC0415
-        paths = [
-            os.path.dirname(nvidia.cublas.lib.__file__),
-            os.path.dirname(nvidia.cudnn.lib.__file__),
-        ]
+        # Son namespace packages (sin __init__.py): __file__ es None, hay que
+        # usar __path__ para localizar el directorio con las .so.
+        import nvidia.cublas.lib as _cublas  # noqa: PLC0415
+        import nvidia.cudnn.lib as _cudnn  # noqa: PLC0415
+        paths = [next(iter(_cublas.__path__)), next(iter(_cudnn.__path__))]
     except Exception:  # noqa: BLE001
         return  # usando ctranslate2 del sistema u otra ruta: nada que hacer
     current = os.environ.get("LD_LIBRARY_PATH", "")
