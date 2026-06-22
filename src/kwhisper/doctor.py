@@ -69,6 +69,16 @@ def _check_wayland_tools() -> None:
         _line(OK, "socket ydotoold", sock)
     else:
         _line(WARN, "socket ydotoold no existe", f"{sock} — arranca: systemctl --user enable --now ydotool")
+    # detección de terminal (Ctrl+Shift+V)
+    try:
+        from .window import WindowDetector
+        backend = WindowDetector().backend
+        if backend == "ninguno":
+            _line(WARN, "detección de terminal", "sin backend — siempre Ctrl+V (instala kdotool o KWin/gdbus)")
+        else:
+            _line(OK, "detección de terminal", f"backend: {backend}")
+    except Exception as exc:  # noqa: BLE001
+        _line(WARN, "detección de terminal", str(exc))
 
 
 def _check_permissions() -> None:

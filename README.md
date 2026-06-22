@@ -52,7 +52,8 @@ bash scripts/setup.sh
 El script (idempotente, pide confirmación antes de cada cambio con `sudo`):
 
 1. Instala paquetes del sistema: `pyside6 ydotool wl-clipboard libnotify libcanberra ffmpeg python-evdev`.
-2. (Opcional, AUR) `kdotool` para detectar terminales y usar `Ctrl+Shift+V`.
+2. (Opcional, AUR) `kdotool`. **No es necesario**: si no está, kwhisper detecta
+   la terminal de forma nativa por el D-Bus de KWin (sin AUR). Sáltatelo sin miedo.
 3. Crea el venv con `uv` (`--system-site-packages` para reutilizar el PySide6 de pacman) e instala kwhisper + libs CUDA.
 4. Te añade al grupo `input` (push-to-talk). **Requiere cerrar sesión y volver a entrar.**
 5. Activa `ydotool.service` (usuario) e instala la unidad `kwhisper.service`.
@@ -136,7 +137,10 @@ Ejemplos de comandos (lenguaje natural, en español):
   pidió tarde; sube `[inject] restore_delay` (p.ej. a `0.8`).
 - **Error CUDA / `libcudnn`** → lo gestiona el re-exec de `LD_LIBRARY_PATH`; si
   persiste, no mezcles con el `python-pytorch` del sistema (usa el venv aislado).
-- **En terminal pega mal** → instala `kdotool` (detecta Konsole → `Ctrl+Shift+V`).
+- **En terminal pega mal** → la detección de terminal (para usar `Ctrl+Shift+V`)
+  usa KWin por D-Bus; comprueba con `kwhisper-doctor` que el backend no sea
+  «ninguno». Si lo es, instala `kdotool` o revisa `gdbus`/`journalctl`. También
+  puedes forzar `[inject] paste_key = "ctrl+shift+v"` si dictas sobre todo en terminales.
 - **Ver logs**: `journalctl --user -u kwhisper -f` (o `KWHISPER_LOG=DEBUG .venv/bin/kwhisper`).
 
 ## Arquitectura

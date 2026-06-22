@@ -30,15 +30,12 @@ else
   ok "Todos los paquetes presentes."
 fi
 
-# 2) AUR opcional: kdotool (detección de terminal para Ctrl+Shift+V) ----------
-say "AUR opcional: kdotool (mejora la detección de terminal)"
+# 2) kdotool: OPCIONAL. Hay fallback nativo por D-Bus de KWin, no hace falta AUR.
+say "kdotool (OPCIONAL — hay detección de terminal nativa por KWin/D-Bus)"
 if command -v kdotool &>/dev/null; then
-  ok "kdotool ya instalado."
-elif command -v paru &>/dev/null || command -v yay &>/dev/null; then
-  HELPER="$(command -v paru || command -v yay)"
-  if ask "¿Instalar kdotool desde AUR con $HELPER?"; then "$HELPER" -S kdotool; fi
+  ok "kdotool instalado (se usará como backend preferente)."
 else
-  warn "Sin helper AUR (paru/yay). kdotool es opcional; sin él se usa Ctrl+V siempre."
+  ok "kdotool no instalado: kwhisper detectará terminales vía KWin D-Bus (sin AUR)."
 fi
 
 # 3) Entorno Python (uv + venv con site-packages del sistema para PySide6) -----

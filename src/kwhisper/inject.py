@@ -18,6 +18,7 @@ import subprocess
 import time
 
 from .config import InjectConfig
+from .window import WindowDetector
 
 log = logging.getLogger(__name__)
 
@@ -67,78 +68,40 @@ class TextInjector:
         self.cfg = cfg
         self._have_ydotool = shutil.which("ydotool") is not None
         self._have_wlcopy = shutil.which("wl-copy") is not None
-        self._have_kdotool = shutil.which("kdotool") is not None
         self._have_dotool = shutil.which("dotool") is not None
+        self._detector = WindowDetector()
         if cfg.method == "clipboard" and not (self._have_ydotool and self._have_wlcopy):
             log.error("Faltan herramientas: ydotool=%s wl-copy=%s (instala con pacman)",
                       self._have_ydotool, self._have_wlcopy)
 
-    # --- detección de ventana enfocada (opcional, vía kdotool) ---
-    def active_window_id(self) -> str | None:
-        if not (self.cfg.detect_terminal and self._have_kdotool):
-            return None
-        try:
-            out = subprocess.run(
-                ["kdotool", "getactivewindow"],
-                capture_output=True, text=True, timeout=2,
-            )
-            wid = out.stdout.strip()
-            return wid or None
-        except Exception as exc:  # noqa: BLE001
-            log.debug("kdotool getactivewindow falló: %s", exc)
-            return None
-
-    def _window_class(self, wid: str | None) -> str:
-        if not (self._have_kdotool and wid):
-            return ""
-        try:
-            out = subprocess.run(
-                ["kdotool", "getwindowclassname", wid],
-                capture_output=True, text=True, timeout=2,
-            )
-            return out.stdout.strip().lower()
-        except Exception:  # noqa: BLE001
-            return ""
-
-    def _is_terminal(self, wid: str | None) -> bool:
-        return self._window_class(wid) in _TERMINAL_CLASSES
-
-    def _refocus(self, wid: str | None) -> None:
-        if self._have_kdotool and wid:
-            try:
-                subprocess.run(["kdotool", "windowactivate", wid], timeout=2,
-                               capture_output=True)
-            except Exception:  # noqa: BLE001
-                pass
+    def _is_terminal(self) -> bool:
+        if not self.cfg.detect_terminal:
+            return False
+        return self._detector.active_class() in _TERMINAL_CLASSES
 
     # --- API principal ---
-    def inject(self, text: str, target_window: str | None = None) -> None:
+    def inject(self, text: str) -> None:
         if not text:
             return
         if self.cfg.method == "dotool" and self._have_dotool:
             self._inject_dotool(text)
         else:
-            self._inject_clipboard(text, target_window)
+            self._inject_clipboard(text)
 
-    def _inject_clipboard(self, text: str, target_window: str | None) -> None:
+    def _inject_clipboard(self, text: str) -> None:
         if not (self._have_ydotool and self._have_wlcopy):
             raise InjectionError(
                 "Inyección por portapapeles requiere 'ydotool' y 'wl-copy'. "
                 "Instala: sudo pacman -S ydotool wl-clipboard"
             )
         env = _ydotool_env()
+        # Detectar terminal ANTES de tocar el portapapeles (la ventana enfocada
+        # ahora es la de destino; el overlay no roba el foco).
+        combo = self.cfg.terminal_paste_key if self._is_terminal() else self.cfg.paste_key
         prev = self._save_clipboard()
-
-        wid = target_window or self.active_window_id()
-        combo = self.cfg.terminal_paste_key if self._is_terminal(wid) else self.cfg.paste_key
 
         try:
             subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True)
-            # Reactivar la ventana destino solo si el foco se fue a otra parte;
-            # la activación en Wayland es asíncrona, así que dejamos margen.
-            if wid and self.active_window_id() != wid:
-                self._refocus(wid)
-                time.sleep(0.06)
             time.sleep(0.03)  # margen para que el portapapeles propague
             subprocess.run(["ydotool", "key", *_paste_args(combo)], check=True, env=env)
         except subprocess.CalledProcessError as exc:

@@ -76,7 +76,6 @@ class KWhisper:
         self.injector = TextInjector(cfg.inject)
         self.executor = CommandExecutor(cfg.commands)
         self.feedback = Feedback(cfg.ui)
-        self._target_window: str | None = None
         self._listener = None
 
     # ---------- ciclo de vida ----------
@@ -154,7 +153,6 @@ class KWhisper:
             if not self.enabled or self._recording or self._processing:
                 return
             self._recording = True
-        self._target_window = self.injector.active_window_id()
         try:
             self.recorder.start()
         except Exception as exc:  # noqa: BLE001
@@ -179,11 +177,11 @@ class KWhisper:
         self.feedback.play("stop")
         self.ctrl.overlay.emit("processing", "⏳  Procesando…")
         self.ctrl.state.emit("processing")
-        threading.Thread(target=self._process, args=(audio, self._target_window),
+        threading.Thread(target=self._process, args=(audio,),
                          name="kwhisper-process", daemon=True).start()
 
     # ---------- pipeline (hilo worker) ----------
-    def _process(self, audio, target_window) -> None:  # noqa: ANN001
+    def _process(self, audio) -> None:  # noqa: ANN001
         try:
             dur = self.recorder.duration(audio)
             if dur < 0.25:
@@ -207,7 +205,7 @@ class KWhisper:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit("Comando", msg)
             else:
-                self.injector.inject(intent.texto or text, target_window)
+                self.injector.inject(intent.texto or text)
         except Exception as exc:  # noqa: BLE001
             log.exception("Error en el pipeline")
             self.ctrl.overlay.emit("error", "⚠  Error")
