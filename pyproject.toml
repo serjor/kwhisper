@@ -27,6 +27,21 @@ dependencies = [
     # Si prefieres aislarlo del todo, añade aquí "PySide6==6.11.*" y recrea el venv sin --system-site-packages.
 ]
 
+[project.optional-dependencies]
+# Herramientas de desarrollo y CI. NO incluyen el stack GPU/CUDA ni PySide6:
+# los tests unitarios son puros (sin GPU, sin Wayland, sin Ollama).
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "build",
+    "twine",
+]
+
+[project.urls]
+Homepage = "https://github.com/serjor/kwhisper"
+Repository = "https://github.com/serjor/kwhisper"
+Issues = "https://github.com/serjor/kwhisper/issues"
+
 [project.scripts]
 kwhisper = "kwhisper.app:main"
 kwhisper-findkey = "kwhisper.hotkey.findkey:main"
@@ -38,3 +53,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kwhisper"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# Permite importar el paquete desde src/ sin instalarlo (tests puros).
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
