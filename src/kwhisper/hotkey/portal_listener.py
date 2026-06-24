@@ -68,7 +68,7 @@ _GLOBALSHORTCUTS_XML = """<node>
 
 
 class PortalListener:
-    def __init__(self, on_start: Callable[[], None], on_stop: Callable[[], None],
+    def __init__(self, on_start: Callable[[], bool], on_stop: Callable[[], bool],
                  on_error: Callable[[str], None] | None = None):
         self.on_start = on_start
         self.on_stop = on_stop
@@ -78,13 +78,15 @@ class PortalListener:
         self._recording = False
 
     def _toggle(self) -> None:
+        # Solo invertimos nuestro estado si el callback CONFIRMA la transición
+        # (devuelve True). Si la app rechaza arrancar (ocupada/deshabilitada) o
+        # parar, mantenemos el estado para no consumir una pulsación "fantasma".
         try:
             if self._recording:
-                self._recording = False
-                self.on_stop()
-            else:
+                if self.on_stop():
+                    self._recording = False
+            elif self.on_start():
                 self._recording = True
-                self.on_start()
         except Exception:  # noqa: BLE001
             log.exception("Error en toggle del portal")
 

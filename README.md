@@ -122,7 +122,10 @@ Ejemplos de comandos (lenguaje natural, en español):
 - `[hotkey] key` — tecla PTT (usa `kwhisper-findkey`).
 - `[stt] model` — `large-v3-turbo` (rápido) o `large-v3` (más preciso en audio difícil).
 - `[stt] language` — `"es"` o `""` para autodetección.
-- `[llm] enabled` — `false` para desactivar comandos (solo dictado).
+- `[llm] enabled` — `false` desactiva el LLM por completo (dictado crudo, sin
+  corregir puntuación ni clasificar comandos).
+- `[commands] enabled` — `false` no ejecuta comandos pero, si `[llm] enabled`,
+  el dictado sigue beneficiándose de la corrección de puntuación del LLM.
 - `[inject] method` — `"clipboard"` (recomendado) o `"dotool"`.
 - `[commands] allow_launch` — permitir abrir aplicaciones por voz.
 

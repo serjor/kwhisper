@@ -22,8 +22,8 @@ class HotkeyPermissionError(RuntimeError):
 
 
 class EvdevListener:
-    def __init__(self, key_name: str, on_start: Callable[[], None],
-                 on_stop: Callable[[], None], device_path: str = ""):
+    def __init__(self, key_name: str, on_start: Callable[[], object],
+                 on_stop: Callable[[], object], device_path: str = ""):
         self.key_name = key_name
         self.on_start = on_start
         self.on_stop = on_stop

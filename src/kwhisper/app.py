@@ -147,10 +147,13 @@ class KWhisper:
         threading.Thread(target=_load, name="stt-load", daemon=True).start()
 
     # ---------- callbacks del hotkey (hilo del listener) ----------
-    def _on_start(self) -> None:
+    # Devuelven True solo si la transición ocurrió de verdad. El listener del
+    # portal (modo toggle) usa ese valor para no desincronizar su estado cuando
+    # la grabación se rechaza (ocupado/deshabilitado). El evdev lo ignora.
+    def _on_start(self) -> bool:
         with self._lock:
             if not self.enabled or self._recording or self._processing:
-                return
+                return False
             self._recording = True
         try:
             self.recorder.start()
@@ -159,15 +162,16 @@ class KWhisper:
                 self._recording = False
             log.exception("No se pudo iniciar la grabación")
             self.ctrl.notify.emit("kwhisper", f"Error de micrófono: {exc}")
-            return
+            return False
         self.feedback.play("start")
         self.ctrl.overlay.emit("recording", "🎙  Grabando…")
         self.ctrl.state.emit("recording")
+        return True
 
-    def _on_stop(self) -> None:
+    def _on_stop(self) -> bool:
         with self._lock:
             if not self._recording:
-                return
+                return False
             self._recording = False
             # Set TEMPRANO bajo lock: cierra la ventana TOCTOU para que un nuevo
             # push-to-talk no arranque una segunda grabación mientras procesamos.
@@ -178,6 +182,7 @@ class KWhisper:
         self.ctrl.state.emit("processing")
         threading.Thread(target=self._process, args=(audio,),
                          name="kwhisper-process", daemon=True).start()
+        return True
 
     # ---------- pipeline (hilo worker) ----------
     def _process(self, audio) -> None:  # noqa: ANN001
@@ -194,12 +199,17 @@ class KWhisper:
                 self.ctrl.notify.emit("kwhisper", "No se detectó voz.")
                 return
 
-            if self.router is not None and self.cfg.commands.enabled:
+            # Con el LLM activo (router != None) clasificamos SIEMPRE: así el
+            # dictado gana corrección de puntuación/mayúsculas aunque la
+            # ejecución de comandos esté desactivada.
+            if self.router is not None:
                 intent = self.router.classify(text)
             else:
                 from .llm import Intent
                 intent = Intent(tipo="dictado", texto=text)
 
+            # Ejecutar comando solo si están habilitados; si no (o si es
+            # dictado, o un comando con ejecución desactivada) se escribe texto.
             if intent.tipo == "comando" and self.cfg.commands.enabled:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit("Comando", msg)
@@ -225,8 +235,11 @@ class KWhisper:
 
     def _on_open_config(self) -> None:
         try:
-            subprocess.Popen(["xdg-open", str(CONFIG_PATH)],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Guardamos la referencia para no perder el Popen (y que se recolecte
+            # el hijo terminado en el siguiente arranque).
+            self._cfg_proc = subprocess.Popen(
+                ["xdg-open", str(CONFIG_PATH)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:  # noqa: BLE001
             log.exception("No se pudo abrir la config")
 

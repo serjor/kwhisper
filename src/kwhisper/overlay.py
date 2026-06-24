@@ -6,13 +6,15 @@ robar el foco de la ventana destino (donde se va a inyectar el texto).
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QLabel, QWidget
 
 
 class Overlay(QWidget):
-    _COLORS = {
+    _COLORS: ClassVar[dict[str, str]] = {
         "recording": "#e74c3c",
         "processing": "#f39c12",
         "error": "#c0392b",

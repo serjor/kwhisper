@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import time
@@ -28,10 +29,15 @@ _KWIN_SCRIPTING = "/Scripting"
 _PLUGIN = "kwhisper-activewindow"
 _MARKER = "KWHISPER_AW:"
 
-_KWIN_SCRIPT = (
-    "var w = workspace.activeWindow;\n"
-    'print("' + _MARKER + '" + (w ? w.resourceClass : "none"));\n'
-)
+
+def _build_script(nonce: str) -> str:
+    # El nonce hace inequívoco el marcador en el journal (que solo tiene
+    # resolución de 1 s): así no se lee el resultado de una consulta anterior
+    # ocurrida dentro del mismo segundo.
+    return (
+        "var w = workspace.activeWindow;\n"
+        'print("' + _MARKER + nonce + ':" + (w ? w.resourceClass : "none"));\n'
+    )
 
 
 class WindowDetector:
@@ -79,12 +85,21 @@ class WindowDetector:
     # --- backend KWin D-Bus (sin AUR) ---
     # Nota: KWin no re-ejecuta un script ya cargado al llamar run() otra vez, así
     # que recargamos (unload + load + run) en CADA consulta. Es barato (~60-120ms).
-    def _load_script(self) -> int | None:
+    def _load_script(self, script_text: str) -> int | None:
+        # El script se escribe SOLO en XDG_RUNTIME_DIR (directorio privado del
+        # usuario, 0700). No caemos a /tmp: un fichero de nombre predecible ahí
+        # podría ser pre-creado/symlinkeado por otro usuario y KWin acabaría
+        # ejecutando JS ajeno en tu sesión.
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+        if not runtime_dir:
+            log.debug("XDG_RUNTIME_DIR no definido; no se carga el script de KWin.")
+            return None
         try:
-            path = os.path.join(
-                os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "kwhisper-activewindow.js")
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(_KWIN_SCRIPT)
+            path = os.path.join(runtime_dir, "kwhisper-activewindow.js")
+            # O_NOFOLLOW + 0600: no seguir symlinks y solo el usuario lee/escribe.
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+            with os.fdopen(os.open(path, flags, 0o600), "w", encoding="utf-8") as fh:
+                fh.write(script_text)
             subprocess.run(["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,
                             "--object-path", _KWIN_SCRIPTING,
                             "--method", "org.kde.kwin.Scripting.unloadScript", _PLUGIN],
@@ -103,7 +118,8 @@ class WindowDetector:
             return None
 
     def _via_kwin(self) -> str | None:
-        sid = self._load_script()
+        nonce = secrets.token_hex(4)
+        sid = self._load_script(_build_script(nonce))
         if sid is None:
             self._note_fail()
             return None
@@ -120,7 +136,7 @@ class WindowDetector:
         # El print llega al journal con un pequeño retardo: sondear brevemente.
         for _ in range(8):
             time.sleep(0.05)
-            cls = self._read_journal(since)
+            cls = self._read_journal(since, nonce)
             if cls is not None:
                 self._kwin_misses = 0
                 return cls
@@ -134,18 +150,19 @@ class WindowDetector:
             log.warning("Detección de terminal por KWin desactivada tras varios "
                         "fallos; se usará el atajo de pegado por defecto.")
 
-    def _read_journal(self, since: str) -> str | None:
+    def _read_journal(self, since: str, nonce: str) -> str | None:
         try:
             out = subprocess.run(
                 ["journalctl", "_COMM=kwin_wayland", "--since", since, "-o", "cat", "--no-pager"],
                 capture_output=True, text=True, timeout=2).stdout
         except Exception:  # noqa: BLE001
             return None
+        marker = _MARKER + nonce + ":"
         last = None
         for line in out.splitlines():
-            i = line.find(_MARKER)
+            i = line.find(marker)
             if i != -1:
-                last = line[i + len(_MARKER):].strip()
+                last = line[i + len(marker):].strip()
         if last is None:
             return None
         if last == "none":

@@ -78,13 +78,6 @@ class IntentRouter:
         self.cfg = cfg
         self._client = httpx.Client(base_url=cfg.host, timeout=cfg.timeout)
 
-    def available(self) -> bool:
-        try:
-            r = self._client.get("/api/tags", timeout=2)
-            return r.status_code == 200
-        except Exception:  # noqa: BLE001
-            return False
-
     def _messages(self, transcription: str) -> list[dict]:
         msgs: list[dict] = [{"role": "system", "content": _SYSTEM}]
         for user, out in _FEWSHOT:

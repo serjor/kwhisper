@@ -102,7 +102,10 @@ def _check_ollama() -> None:
         from .config import load_config
         cfg = load_config()
         r = httpx.get(f"{cfg.llm.host}/api/tags", timeout=3)
-        models = [m["name"] for m in r.json().get("models", [])]
+        # Ollama expone el nombre del modelo en "name" (o "model" en versiones
+        # recientes de /api/tags); aceptamos ambos para no fallar al detectarlo.
+        models = [m.get("name") or m.get("model", "") for m in r.json().get("models", [])]
+        models = [m for m in models if m]
         _line(OK, "Ollama responde", cfg.llm.host)
         want = cfg.llm.model
         if any(m.split(":")[0] == want.split(":")[0] for m in models):

@@ -66,7 +66,7 @@ class InjectConfig(BaseModel):
     # Margen antes de restaurar el portapapeles: la app destino pide el dato de
     # forma diferida tras el Ctrl+V; un valor bajo puede restaurar antes de tiempo.
     restore_delay: float = 0.5
-    # Detectar terminales (vía kdotool) para usar Ctrl+Shift+V automáticamente.
+    # Detectar terminales (vía kdotool o KWin D-Bus) para usar Ctrl+Shift+V.
     detect_terminal: bool = True
 
 
@@ -120,7 +120,11 @@ vad_filter = true
 initial_prompt = ""        # ej: "kubernetes, pull request, deploy, commit"
 
 [llm]
-enabled = true             # false = solo dictado, sin clasificar comandos
+# false = NO se usa el LLM: dicta la transcripción tal cual (sin corregir
+#         puntuación/mayúsculas ni clasificar comandos).
+# true  = el LLM corrige la puntuación del dictado y, si [commands].enabled,
+#         además clasifica y ejecuta comandos de voz.
+enabled = true
 host = "http://127.0.0.1:11434"
 model = "gemma3"
 timeout = 8.0
@@ -131,7 +135,7 @@ paste_key = "ctrl+v"
 terminal_paste_key = "ctrl+shift+v"
 restore_clipboard = true
 restore_delay = 0.5        # sube esto si al pegar aparece el portapapeles anterior
-detect_terminal = true     # usa kdotool para Ctrl+Shift+V en terminales
+detect_terminal = true     # Ctrl+Shift+V en terminales (vía kdotool o KWin D-Bus)
 
 [ui]
 overlay = true
@@ -139,6 +143,9 @@ sounds = true
 notifications = true
 
 [commands]
+# false = nunca se ejecutan comandos (pero si [llm].enabled sigue corrigiendo
+#         la puntuación del dictado). true = "abre <app>"/"pulsa <tecla>" se
+#         ejecutan; requiere [llm].enabled = true.
 enabled = true
 allow_launch = true        # permitir "abre <app>"
 """

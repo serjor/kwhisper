@@ -15,6 +15,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 
 from .config import InjectConfig
@@ -70,6 +71,10 @@ class TextInjector:
         self._have_wlcopy = shutil.which("wl-copy") is not None
         self._have_dotool = shutil.which("dotool") is not None
         self._detector = WindowDetector()
+        # Serializa inyecciones: la restauración diferida del portapapeles lo
+        # toma y lo suelta al terminar, de modo que la siguiente inyección
+        # espera a que el portapapeles del usuario esté de vuelta.
+        self._inject_lock = threading.Lock()
         if cfg.method == "clipboard" and not (self._have_ydotool and self._have_wlcopy):
             log.error("Faltan herramientas: ydotool=%s wl-copy=%s (instala con pacman)",
                       self._have_ydotool, self._have_wlcopy)
@@ -83,39 +88,95 @@ class TextInjector:
     def inject(self, text: str) -> None:
         if not text:
             return
+        # Tomamos el lock para toda la inyección. El método de portapapeles puede
+        # delegar su liberación al hilo de restauración diferida (ver abajo).
+        self._inject_lock.acquire()
         if self.cfg.method == "dotool" and self._have_dotool:
-            self._inject_dotool(text)
+            try:
+                self._inject_dotool(text)
+            finally:
+                self._inject_lock.release()
         else:
-            self._inject_clipboard(text)
+            self._inject_clipboard(text)  # gestiona la liberación del lock
 
     def _inject_clipboard(self, text: str) -> None:
-        if not (self._have_ydotool and self._have_wlcopy):
-            raise InjectionError(
-                "Inyección por portapapeles requiere 'ydotool' y 'wl-copy'. "
-                "Instala: sudo pacman -S ydotool wl-clipboard"
-            )
-        env = _ydotool_env()
-        # Detectar terminal ANTES de tocar el portapapeles (la ventana enfocada
-        # ahora es la de destino; el overlay no roba el foco).
-        combo = self.cfg.terminal_paste_key if self._is_terminal() else self.cfg.paste_key
-        prev = self._save_clipboard()
-
+        """Pega via portapapeles. Se llama con ``_inject_lock`` TOMADO y
+        garantiza liberarlo EXACTAMENTE una vez por CUALQUIER camino: el
+        ``finally`` lo suelta salvo que se haya transferido al hilo de
+        restauración diferida (que lo soltará él)."""
+        lock_transferred = False
         try:
-            subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True)
-            time.sleep(0.03)  # margen para que el portapapeles propague
-            subprocess.run(["ydotool", "key", *_paste_args(combo)], check=True, env=env)
-        except subprocess.CalledProcessError as exc:
-            raise InjectionError(f"Fallo al pegar: {exc}") from exc
-        finally:
+            if not (self._have_ydotool and self._have_wlcopy):
+                raise InjectionError(
+                    "Inyección por portapapeles requiere 'ydotool' y 'wl-copy'. "
+                    "Instala: sudo pacman -S ydotool wl-clipboard"
+                )
+            env = _ydotool_env()
+            # Detectar terminal ANTES de tocar el portapapeles (la ventana
+            # enfocada ahora es la de destino; el overlay no roba el foco).
+            combo = self.cfg.terminal_paste_key if self._is_terminal() else self.cfg.paste_key
+            prev = self._save_clipboard()
+
+            paste_error: Exception | None = None
+            try:
+                seq = _paste_args(combo)  # puede lanzar si la combinación es inválida
+                subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True)
+                time.sleep(0.03)  # margen para que el portapapeles propague
+                subprocess.run(["ydotool", "key", *seq], check=True, env=env)
+            except subprocess.CalledProcessError as exc:
+                paste_error = InjectionError(f"Fallo al pegar: {exc}")
+            except Exception as exc:  # noqa: BLE001  (p.ej. tecla inválida en combo)
+                paste_error = exc
+
+            # La restauración SIEMPRE ocurre (aunque el pegado fallara), para no
+            # dejar el dictado en el portapapeles del usuario.
             if self.cfg.restore_clipboard:
-                time.sleep(self.cfg.restore_delay)
-                self._restore_clipboard(prev)
+                # Diferida en segundo plano: inject() retorna tras el pegado y el
+                # worker libera _processing sin esperar restore_delay; el lock lo
+                # suelta el hilo de restauración. Si el arranque del hilo falla
+                # (p.ej. RuntimeError al agotar hilos), restauramos en línea y
+                # dejamos que el finally libere el lock (sin transferirlo).
+                t = threading.Thread(target=self._delayed_restore, args=(prev,),
+                                     name="clip-restore", daemon=True)
+                try:
+                    t.start()
+                except Exception:  # noqa: BLE001
+                    log.warning("No se pudo lanzar el hilo de restauración; "
+                                "restaurando el portapapeles en línea.")
+                    self._restore_clipboard(prev)
+                else:
+                    lock_transferred = True
+
+            if paste_error is not None:
+                raise paste_error
+        finally:
+            if not lock_transferred:
+                self._inject_lock.release()
+
+    def _delayed_restore(self, prev: tuple[bytes | None, str | None, bool]) -> None:
+        try:
+            time.sleep(self.cfg.restore_delay)
+            self._restore_clipboard(prev)
+        finally:
+            self._inject_lock.release()
 
     def _inject_dotool(self, text: str) -> None:
         env = dict(os.environ)
         env.setdefault("DOTOOL_XKB_LAYOUT", "es")
+        # dotool lee una orden por línea de stdin: un texto con saltos rompería
+        # el parseo (las líneas siguientes se tomarían como comandos). Troceamos:
+        # cada línea se teclea con `type` y los saltos se envían como Return.
+        cmds: list[str] = []
+        for i, line in enumerate(text.split("\n")):
+            if i:
+                cmds.append("key Return")
+            if line:
+                cmds.append(f"type {line}")
+        script = "\n".join(cmds)
+        if not script:
+            return
         try:
-            subprocess.run(["dotool"], input=f"type {text}".encode("utf-8"),
+            subprocess.run(["dotool"], input=script.encode("utf-8"),
                            check=True, env=env)
         except subprocess.CalledProcessError as exc:
             raise InjectionError(f"dotool falló: {exc}") from exc

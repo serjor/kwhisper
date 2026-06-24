@@ -37,6 +37,15 @@ _KEY_ALIASES = {
 class CommandExecutor:
     def __init__(self, cfg: CommandsConfig):
         self.cfg = cfg
+        self._procs: list[subprocess.Popen] = []
+
+    def _spawn(self, args: list[str]) -> None:
+        # Lanza desacoplado y conserva la referencia, podando los ya terminados
+        # (evita zombies sin perder el Popen).
+        self._procs = [p for p in self._procs if p.poll() is None]
+        self._procs.append(subprocess.Popen(
+            args, start_new_session=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 
     def execute(self, intent: Intent) -> str:
         """Ejecuta la acción del intent. Devuelve un mensaje legible del resultado."""
@@ -52,20 +61,19 @@ class CommandExecutor:
             return "Comando 'abrir' sin aplicación."
         if not self.cfg.allow_launch:
             return "Lanzar aplicaciones está desactivado en la config."
+        # Solo el primer token: lanzamos el binario SIN argumentos extra que
+        # pudiera colar la transcripción (p.ej. flags peligrosas a un binario).
         binary = name.split()[0]
         try:
             if shutil.which(binary):
-                subprocess.Popen(name.split(), start_new_session=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return f"Abriendo {name}"
+                self._spawn([binary])
+                return f"Abriendo {binary}"
             # Fallback: lanzador por .desktop (KDE/GTK).
             if shutil.which("kstart"):
-                subprocess.Popen(["kstart", binary], start_new_session=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._spawn(["kstart", binary])
                 return f"Abriendo {binary} (kstart)"
             if shutil.which("gtk-launch"):
-                subprocess.Popen(["gtk-launch", binary], start_new_session=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._spawn(["gtk-launch", binary])
                 return f"Abriendo {binary} (gtk-launch)"
             return f"No encuentro la aplicación '{binary}'."
         except Exception as exc:  # noqa: BLE001
