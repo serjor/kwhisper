@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -55,6 +56,7 @@ class KWhisper:
         self.executor = CommandExecutor(cfg.commands)
         self.feedback = Feedback(cfg.ui)
         self._listener = None
+        self._quitting = False
 
     # ---------- ciclo de vida ----------
     def setup_ui(self) -> None:
@@ -211,6 +213,10 @@ class KWhisper:
     def _on_toggle_enabled(self, checked: bool) -> None:
         self.enabled = checked
         self.ctrl.state.emit("idle" if checked else "disabled")
+        # Feedback explícito: sin esto el único indicio es el icono del tray (que
+        # depende del tema) y parece que el checkbox no hace nada.
+        self.ctrl.notify.emit("kwhisper",
+                              "Dictado activado" if checked else "Dictado desactivado")
 
     def _on_open_config(self) -> None:
         try:
@@ -224,6 +230,9 @@ class KWhisper:
 
     def _on_quit(self) -> None:
         from PySide6.QtWidgets import QApplication
+        if self._quitting:  # reentrante-seguro: una 2ª señal no repite el cierre
+            return
+        self._quitting = True
         if self._listener:
             self._listener.stop()
         if self.router:
@@ -251,6 +260,24 @@ def main() -> int:
     app.setup_ui()
     app.load_model_async()
     app.start_listener()
+
+    from PySide6.QtCore import QTimer
+
+    # Ctrl+C (SIGINT) y `systemctl --user stop` (SIGTERM) deben parar el daemon
+    # limpiamente. qapp.exec() bloquea el intérprete en C++, así que:
+    #  1) registramos handlers Python que enrutan al cierre limpio (_on_quit), y
+    #  2) un QTimer no-op periódico devuelve el control al intérprete para que la
+    #     señal se atienda y el quit encolado despierte el bucle de eventos.
+    def _signal_shutdown(signum, _frame):  # noqa: ANN001
+        log.info("Señal %s recibida; cerrando kwhisper.", signal.Signals(signum).name)
+        app._on_quit()
+
+    signal.signal(signal.SIGINT, _signal_shutdown)
+    signal.signal(signal.SIGTERM, _signal_shutdown)
+
+    wake_timer = QTimer()
+    wake_timer.timeout.connect(lambda: None)  # cede el control al intérprete Python
+    wake_timer.start(200)
 
     log.info("kwhisper en marcha. Backend hotkey=%s, tecla=%s",
              cfg.hotkey.backend, cfg.hotkey.key)

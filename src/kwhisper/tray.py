@@ -37,9 +37,11 @@ class Tray:
         menu.addAction(self._status_action)
         menu.addSeparator()
 
-        self._enabled_action = QAction("Activado")
+        self._enabled_action = QAction("Dictado activado")
         self._enabled_action.setCheckable(True)
         self._enabled_action.setChecked(True)
+        # Etiqueta dinámica (texto, no depende del icono del tema) + callback externo.
+        self._enabled_action.toggled.connect(self._on_enabled_toggled)
         self._enabled_action.toggled.connect(on_toggle_enabled)
         menu.addAction(self._enabled_action)
 
@@ -56,11 +58,18 @@ class Tray:
         self.set_state("idle")
         self._tray.show()
 
+    def _on_enabled_toggled(self, checked: bool) -> None:
+        # Texto explícito en el menú: el usuario lee el estado sin depender del icono.
+        self._enabled_action.setText("Dictado activado" if checked else "Dictado desactivado")
+
     def set_state(self, state: str) -> None:
         icon_name = _ICONS.get(state, _ICONS["idle"])
         icon = QIcon.fromTheme(icon_name)
         if icon.isNull():
-            icon = QIcon.fromTheme("audio-input-microphone")
+            # Fallback VISIBLEMENTE distinto para 'disabled' aunque el tema no
+            # traiga el icono '-muted' (si no, se vería igual que 'idle').
+            fallback = "dialog-cancel" if state == "disabled" else "audio-input-microphone"
+            icon = QIcon.fromTheme(fallback)
         self._tray.setIcon(icon)
         self._status_action.setText(_LABELS.get(state, _LABELS["idle"]))
         self._tray.setToolTip(_LABELS.get(state, "kwhisper"))
