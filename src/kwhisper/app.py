@@ -21,27 +21,6 @@ from .config import CONFIG_PATH, Config, load_config
 log = logging.getLogger("kwhisper")
 
 
-def _ensure_cuda_lib_path() -> None:
-    """Si STT usa CUDA por wheels pip, mete cuBLAS/cuDNN en LD_LIBRARY_PATH y
-    re-ejecuta el proceso (el loader lee LD_LIBRARY_PATH solo al arrancar)."""
-    if os.environ.get("KWHISPER_LDPATH_SET"):
-        return
-    try:
-        # Son namespace packages (sin __init__.py): __file__ es None, hay que
-        # usar __path__ para localizar el directorio con las .so.
-        import nvidia.cublas.lib as _cublas  # noqa: PLC0415
-        import nvidia.cudnn.lib as _cudnn  # noqa: PLC0415
-        paths = [next(iter(_cublas.__path__)), next(iter(_cudnn.__path__))]
-    except Exception:  # noqa: BLE001
-        return  # usando ctranslate2 del sistema u otra ruta: nada que hacer
-    current = os.environ.get("LD_LIBRARY_PATH", "")
-    if all(p in current.split(":") for p in paths):
-        return
-    os.environ["LD_LIBRARY_PATH"] = ":".join(paths + ([current] if current else []))
-    os.environ["KWHISPER_LDPATH_SET"] = "1"
-    os.execv(sys.executable, [sys.executable, *sys.argv])
-
-
 class KWhisper:
     def __init__(self, cfg: Config):
         from PySide6.QtCore import QObject, Signal
@@ -259,7 +238,8 @@ def main() -> int:
     )
     cfg = load_config()
     if cfg.stt.device == "cuda":
-        _ensure_cuda_lib_path()
+        from .stt import ensure_cuda_lib_path
+        ensure_cuda_lib_path()
 
     from PySide6.QtWidgets import QApplication
 

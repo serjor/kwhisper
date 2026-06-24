@@ -9,6 +9,8 @@ una sola vez (la primera inferencia es lenta en Blackwell).
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import time
 
 import numpy as np
@@ -16,6 +18,31 @@ import numpy as np
 from .config import STTConfig
 
 log = logging.getLogger(__name__)
+
+
+def ensure_cuda_lib_path() -> None:
+    """Si STT usa CUDA por wheels pip, mete cuBLAS/cuDNN en LD_LIBRARY_PATH y
+    re-ejecuta el proceso (el loader lee LD_LIBRARY_PATH solo al arrancar).
+
+    No-op si ya se hizo (KWHISPER_LDPATH_SET) o si no se usan los wheels (p.ej.
+    ctranslate2 del sistema). Debe llamarse ANTES de instanciar WhisperModel.
+    Lo usan tanto el daemon (app.main) como los scripts sueltos (smoke_stt)."""
+    if os.environ.get("KWHISPER_LDPATH_SET"):
+        return
+    try:
+        # Son namespace packages (sin __init__.py): __file__ es None, hay que
+        # usar __path__ para localizar el directorio con las .so.
+        import nvidia.cublas.lib as _cublas  # noqa: PLC0415
+        import nvidia.cudnn.lib as _cudnn  # noqa: PLC0415
+        paths = [next(iter(_cublas.__path__)), next(iter(_cudnn.__path__))]
+    except Exception:  # noqa: BLE001
+        return  # usando ctranslate2 del sistema u otra ruta: nada que hacer
+    current = os.environ.get("LD_LIBRARY_PATH", "")
+    if all(p in current.split(":") for p in paths):
+        return
+    os.environ["LD_LIBRARY_PATH"] = ":".join(paths + ([current] if current else []))
+    os.environ["KWHISPER_LDPATH_SET"] = "1"
+    os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
 class STTEngine:
