@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Dictado por voz local estilo Wispr Flow para KDE Plasma 6 (Wayland) — STT con faster-whisper + clasificación dictado/comando con Ollama"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "GPL-3.0-or-later" }
+license = { text = "MPL-2.0" }
 authors = [{ name = "serjor" }]
 dependencies = [
     # --- STT (CUDA, Blackwell sm_120: usar float16) ---

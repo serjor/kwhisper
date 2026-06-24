@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Listener push-to-talk vía evdev (lectura directa de /dev/input).
 
 Detecta KEY_DOWN (value=1 → on_start) y KEY_UP (value=0 → on_stop) de la tecla

@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Motor de transcripción con faster-whisper (CTranslate2) sobre CUDA.
 
 Nota Blackwell (sm_120): ``compute_type`` debe ser ``float16``. INT8 da

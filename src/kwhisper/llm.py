@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Clasificación dictado vs comando con un LLM local vía Ollama.
 
 Dada una transcripción, ``gemma3`` decide si el usuario quiere DICTAR texto

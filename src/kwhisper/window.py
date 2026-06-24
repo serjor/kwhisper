@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Detección de la clase de la ventana enfocada bajo KWin/Wayland.
 
 Se usa para decidir si pegar con Ctrl+V (apps normales) o Ctrl+Shift+V

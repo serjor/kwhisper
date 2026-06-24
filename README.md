@@ -174,4 +174,7 @@ Procesos externos: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 
 ## Licencia
 
-GPL-3.0-or-later.
+[MPL-2.0](LICENSE) (Mozilla Public License 2.0): copyleft a nivel de fichero.
+Puedes usar y redistribuir kwhisper, incluso junto a software comercial cerrado.
+Pero si **modificas** un fichero cubierto, debes publicar el código fuente de
+**ese fichero** bajo MPL-2.0. Lo que añadas en ficheros nuevos puede ser cerrado.
