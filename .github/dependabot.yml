@@ -1,0 +1,79 @@
+# Configuración de Dependabot para kwhisper
+# Documentación: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Dependencias de Python (pip / pyproject.toml)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+    # Límite de PRs simultáneas para no saturar el repo (por defecto 5)
+    open-pull-requests-limit: 10
+    # Estrategia de versionado: ampliar el rango permitido cuando sea posible
+    versioning-strategy: "increase-if-necessary"
+    # Mantén las PRs al día con la rama base automáticamente
+    rebase-strategy: "auto"
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+      include: "scope"
+    # Agrupa actualizaciones para reducir el ruido de PRs
+    groups:
+      # Todas las actualizaciones menores y de parche en una sola PR
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      # Agrupa el stack de NVIDIA/CUDA, que suele moverse en conjunto
+      nvidia-cuda:
+        applies-to: version-updates
+        patterns:
+          - "nvidia-*"
+          - "ctranslate2"
+          - "faster-whisper"
+      # Agrupa los parches de seguridad por separado para revisarlos rápido
+      python-security:
+        applies-to: security-updates
+        update-types:
+          - "minor"
+          - "patch"
+    # Ejemplo de cómo ignorar major de un paquete sensible (descomentar si hace falta)
+    # ignore:
+    #   - dependency-name: "nvidia-cudnn-cu12"
+    #     update-types: ["version-update:semver-major"]
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions (workflows de CI/CD)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
