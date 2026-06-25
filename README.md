@@ -1,187 +1,191 @@
 # kwhisper
 
-Dictado por voz **local** estilo Wispr Flow para **KDE Plasma 6 (Wayland)**.
+**Languages:** [English](README.md) · [Español](README.es.md)
 
-Mantienes pulsada una tecla, hablas, la sueltas → el texto aparece en la ventana
-enfocada. Un LLM local decide si lo que dijiste es **dictado** (se escribe) o un
-**comando** (se ejecuta: abrir apps, pulsar teclas). Todo corre en tu máquina:
-nada sale a internet.
+**Local** Wispr Flow-style voice dictation for **KDE Plasma 6 (Wayland)**.
 
-- **STT**: `faster-whisper` (`large-v3-turbo`, float16) en GPU NVIDIA.
-- **Clasificación dictado/comando**: Ollama (`gemma3`).
-- **Activación**: push-to-talk vía `evdev` (mantener pulsado).
-- **Inyección**: portapapeles + `Ctrl+V` (acentos del español 100% fiables en KWin).
-- **UI**: icono de bandeja + overlay flotante + sonidos.
+You hold down a key, speak, release it → the text appears in the focused window.
+A local LLM decides whether what you said is **dictation** (it gets typed) or a
+**command** (it gets executed: open apps, press keys). Everything runs on your
+machine: nothing leaves the internet.
 
-> Diseñado y verificado para: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
-> (Blackwell `sm_120`) · PipeWire. Debería valer en cualquier Arch+KDE con GPU NVIDIA.
+- **STT**: `faster-whisper` (`large-v3-turbo`, float16) on an NVIDIA GPU.
+- **Dictation/command classification**: Ollama (`gemma3`).
+- **Activation**: push-to-talk via `evdev` (hold the key down).
+- **Injection**: clipboard + `Ctrl+V` (Spanish accents 100% reliable in KWin).
+- **UI**: tray icon + floating overlay + sounds.
 
----
-
-## Por qué estas decisiones (no son las obvias)
-
-Tres trampas de Wayland/Blackwell que condicionan el diseño:
-
-1. **GPU Blackwell (`sm_120`)**: `faster-whisper` funciona, pero **hay que usar
-   `float16`** — INT8 da `CUBLAS_STATUS_NOT_SUPPORTED` en RTX 50xx con CTranslate2
-   antiguo. Los wheels CUDA 12 corren sobre tu driver 610 por retrocompatibilidad.
-2. **Push-to-talk**: el portal de atajos de KDE **pierde el evento de soltar la
-   tecla** si tecleas mientras dictas (bug KWin 483183). Por eso se lee el teclado
-   con **`evdev`** (requiere grupo `input`). El portal queda como *fallback* en
-   modo toggle.
-3. **Acentos**: ninguna herramienta teclea `ñ á ¿ ¡ ü` de forma fiable en KWin
-   (`ydotool type` rompe Unicode; `wtype` no soporta KWin). Por eso se usa
-   **portapapeles + Ctrl+V**: el carácter viaja como dato y solo se simula un
-   atajo fijo.
+> Designed and verified for: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
+> (Blackwell `sm_120`) · PipeWire. Should work on any Arch+KDE with an NVIDIA GPU.
 
 ---
 
-## Requisitos
+## Why these decisions (they aren't the obvious ones)
 
-- KDE Plasma 6 sobre Wayland, Arch/CachyOS.
-- GPU NVIDIA con driver reciente (probado en 610 / serie 50xx). 16 GB VRAM sobran.
-- `uv`, `ollama` (con `gemma3`), `pipewire`.
+Three Wayland/Blackwell pitfalls that shape the design:
 
-## Instalación
+1. **Blackwell GPU (`sm_120`)**: `faster-whisper` works, but **you have to use
+   `float16`** — INT8 gives `CUBLAS_STATUS_NOT_SUPPORTED` on RTX 50xx with old
+   CTranslate2. The CUDA 12 wheels run on your driver 610 thanks to backward
+   compatibility.
+2. **Push-to-talk**: KDE's shortcut portal **loses the key-release event** if you
+   type while dictating (KWin bug 483183). That's why the keyboard is read with
+   **`evdev`** (requires the `input` group). The portal remains as a *fallback*
+   in toggle mode.
+3. **Accents**: no tool types `ñ á ¿ ¡ ü` reliably in KWin (`ydotool type`
+   breaks Unicode; `wtype` doesn't support KWin). That's why we use
+   **clipboard + Ctrl+V**: the character travels as data and only a fixed
+   shortcut is simulated.
+
+---
+
+## Requirements
+
+- KDE Plasma 6 on Wayland, Arch/CachyOS.
+- NVIDIA GPU with a recent driver (tested on 610 / 50xx series). 16 GB VRAM is plenty.
+- `uv`, `ollama` (with `gemma3`), `pipewire`.
+
+## Installation
 
 ```fish
-# Clónalo DONDE QUIERAS: setup.sh detecta la ruta automáticamente.
-cd /ruta/donde/clonaste/kwhisper
+# Clone it WHEREVER YOU WANT: setup.sh detects the path automatically.
+cd /path/where/you/cloned/kwhisper
 bash scripts/setup.sh
 ```
 
-El script (idempotente, pide confirmación antes de cada cambio con `sudo`):
+The script (idempotent, asks for confirmation before each `sudo` change):
 
-1. Instala paquetes del sistema: `pyside6 ydotool wl-clipboard libnotify libcanberra ffmpeg python-evdev`.
-2. (Opcional, AUR) `kdotool`. **No es necesario**: si no está, kwhisper detecta
-   la terminal de forma nativa por el D-Bus de KWin (sin AUR). Sáltatelo sin miedo.
-3. Crea el venv con `uv` (`--system-site-packages` para reutilizar el PySide6 de pacman) e instala kwhisper + libs CUDA.
-4. Te añade al grupo `input` (push-to-talk). **Requiere cerrar sesión y volver a entrar.**
-5. Activa `ydotool.service` (usuario) e instala la unidad `kwhisper.service`.
+1. Installs system packages: `pyside6 ydotool wl-clipboard libnotify libcanberra ffmpeg python-evdev`.
+2. (Optional, AUR) `kdotool`. **Not required**: if it's missing, kwhisper detects
+   the terminal natively through KWin's D-Bus (no AUR). Skip it without worry.
+3. Creates the venv with `uv` (`--system-site-packages` to reuse pacman's PySide6) and installs kwhisper + CUDA libs.
+4. Adds you to the `input` group (push-to-talk). **Requires logging out and back in.**
+5. Enables `ydotool.service` (user) and installs the `kwhisper.service` unit.
 
-Después:
+Then:
 
 ```fish
-# 1. Descubre el nombre de tu tecla de push-to-talk
-.venv/bin/kwhisper-findkey            # pulsa la tecla; copia el nombre (p.ej. KEY_PAUSE)
+# 1. Discover the name of your push-to-talk key
+.venv/bin/kwhisper-findkey            # press the key; copy the name (e.g. KEY_PAUSE)
 
-# 2. Ponla en la config
+# 2. Put it in the config
 $EDITOR ~/.config/kwhisper/config.toml   # [hotkey] key = "KEY_PAUSE"
 
-# 3. Comprueba que todo está en su sitio
+# 3. Check that everything is in place
 .venv/bin/kwhisper-doctor
 
-# 4. Pruébalo a mano (verás el icono en la bandeja)
+# 4. Try it by hand (you'll see the icon in the tray)
 .venv/bin/kwhisper
 ```
 
-Cuando funcione, déjalo como servicio:
+Once it works, leave it as a service:
 
 ```fish
 systemctl --user enable --now kwhisper
 ```
 
-## Verificación rápida
+## Quick verification
 
 ```fish
-# STT + GPU + micro en un solo test (graba 4s y transcribe):
+# STT + GPU + mic in a single test (records 4s and transcribes):
 .venv/bin/python scripts/smoke_stt.py
 
-# Acentos por portapapeles (enfoca un editor; cuenta atrás y pega la cadena):
+# Accents through the clipboard (focus an editor; countdown then pastes the string):
 bash scripts/test_inject.sh
 
-# Lógica pura:
+# Pure logic:
 .venv/bin/python tests/test_unit.py
 ```
 
-## Uso
+## Usage
 
-1. Mantén pulsada la tecla PTT. Suena un tono y aparece el overlay «🎙 Grabando…».
-2. Habla.
-3. Suelta. Se transcribe, se clasifica y:
-   - **Dictado** → el texto se pega en la ventana enfocada.
-   - **Comando** → se ejecuta (notificación con el resultado).
+1. Hold down the PTT key. A tone plays and the overlay «🎙 Recording…» appears.
+2. Speak.
+3. Release. It transcribes, classifies and:
+   - **Dictation** → the text is pasted into the focused window.
+   - **Command** → it gets executed (notification with the result).
 
-Ejemplos de comandos (lenguaje natural, en español):
+Command examples (natural language):
 
-| Dices | Acción |
+| You say | Action |
 |---|---|
-| «abre firefox» | lanza Firefox |
-| «lanza la terminal konsole» | abre Konsole |
-| «pulsa enter» | envía Return |
-| «el año pasado fui a España» | se **dicta** el texto |
+| «open firefox» | launches Firefox |
+| «launch the konsole terminal» | opens Konsole |
+| «press enter» | sends Return |
+| «last year I went to Spain» | the text is **dictated** |
 
-> Ante la duda, el clasificador escribe (dictado). Si Ollama no está disponible,
-> kwhisper sigue funcionando solo como dictado.
+> When in doubt, the classifier types it (dictation). If Ollama isn't available,
+> kwhisper keeps working as dictation only.
 
-## Configuración
+## Configuration
 
-`~/.config/kwhisper/config.toml` (se crea solo la primera vez). Tras editar:
-`systemctl --user restart kwhisper`. Claves útiles:
+`~/.config/kwhisper/config.toml` (created automatically the first time). After
+editing: `systemctl --user restart kwhisper`. Useful keys:
 
-- `[hotkey] backend` — `"evdev"` (push-to-talk) o `"portal"` (toggle, sin grupo input).
-- `[hotkey] key` — tecla PTT (usa `kwhisper-findkey`).
-- `[stt] model` — `large-v3-turbo` (rápido) o `large-v3` (más preciso en audio difícil).
-- `[stt] language` — `"es"` o `""` para autodetección.
-- `[llm] enabled` — `false` desactiva el LLM por completo (dictado crudo, sin
-  corregir puntuación ni clasificar comandos).
-- `[commands] enabled` — `false` no ejecuta comandos pero, si `[llm] enabled`,
-  el dictado sigue beneficiándose de la corrección de puntuación del LLM.
-- `[inject] method` — `"clipboard"` (recomendado) o `"dotool"`.
-- `[commands] allow_launch` — permitir abrir aplicaciones por voz.
+- `[hotkey] backend` — `"evdev"` (push-to-talk) or `"portal"` (toggle, no input group).
+- `[hotkey] key` — PTT key (use `kwhisper-findkey`).
+- `[stt] model` — `large-v3-turbo` (fast) or `large-v3` (more accurate on difficult audio).
+- `[stt] language` — `"es"`, `"en"`, … or `""` for autodetection.
+- `[llm] enabled` — `false` disables the LLM completely (raw dictation, without
+  fixing punctuation or classifying commands).
+- `[commands] enabled` — `false` doesn't execute commands but, if `[llm] enabled`,
+  dictation still benefits from the LLM's punctuation correction.
+- `[inject] method` — `"clipboard"` (recommended) or `"dotool"`.
+- `[commands] allow_launch` — allow opening applications by voice.
 
-## Solución de problemas
+## Troubleshooting
 
-- **No graba / “sin permiso de teclado”** → no estás en el grupo `input`. Ejecuta
-  `sudo usermod -aG input $USER` y **vuelve a iniciar sesión**, o usa `backend = "portal"`.
-- **No pega texto** → revisa `systemctl --user status ydotool` y que
-  `kwhisper-doctor` vea el socket. El cursor debe estar en un campo de texto.
-- **Acentos rotos** → asegúrate de `method = "clipboard"` (no `dotool`).
-- **Al pegar aparece lo que tenías antes en el portapapeles** → la app destino lo
-  pidió tarde; sube `[inject] restore_delay` (p.ej. a `0.8`).
-- **Error CUDA / `libcudnn`** → lo gestiona el re-exec de `LD_LIBRARY_PATH`; si
-  persiste, no mezcles con el `python-pytorch` del sistema (usa el venv aislado).
-- **Funciona a mano pero como servicio no pega (sobre todo en konsole)** → bajo
-  `systemctl --user` falta `DBUS_SESSION_BUS_ADDRESS`, así que `gdbus` no alcanza a
-  KWin y la detección de terminal cae a `Ctrl+V` (konsole no pega con eso). kwhisper
-  ya lo deriva de `$XDG_RUNTIME_DIR/bus`; si aún falla, `kwhisper-doctor` te dirá si
-  el «bus de sesión D-Bus» está ausente. Reinstala la unidad actualizada:
+- **Doesn't record / "no keyboard permission"** → you're not in the `input` group.
+  Run `sudo usermod -aG input $USER` and **log back in**, or use `backend = "portal"`.
+- **Doesn't paste text** → check `systemctl --user status ydotool` and that
+  `kwhisper-doctor` sees the socket. The cursor must be in a text field.
+- **Broken accents** → make sure `method = "clipboard"` (not `dotool`).
+- **Pasting shows what you had before in the clipboard** → the target app
+  requested it late; raise `[inject] restore_delay` (e.g. to `0.8`).
+- **CUDA / `libcudnn` error** → handled by the `LD_LIBRARY_PATH` re-exec; if it
+  persists, don't mix it with the system's `python-pytorch` (use the isolated venv).
+- **Works by hand but doesn't paste as a service (especially in konsole)** → under
+  `systemctl --user` the `DBUS_SESSION_BUS_ADDRESS` is missing, so `gdbus` can't
+  reach KWin and terminal detection falls back to `Ctrl+V` (konsole doesn't paste
+  with that). kwhisper now derives it from `$XDG_RUNTIME_DIR/bus`; if it still
+  fails, `kwhisper-doctor` will tell you whether the «D-Bus session bus» is absent.
+  Reinstall the updated unit:
   `systemctl --user daemon-reload && systemctl --user restart kwhisper`.
-- **En terminal pega mal** → la detección de terminal (para usar `Ctrl+Shift+V`)
-  usa KWin por D-Bus; comprueba con `kwhisper-doctor` que el backend no sea
-  «ninguno». Si lo es, instala `kdotool` o revisa `gdbus`/`journalctl`. También
-  puedes forzar `[inject] paste_key = "ctrl+shift+v"` si dictas sobre todo en terminales.
-- **Ver logs**: `journalctl --user -u kwhisper -f` (o `KWHISPER_LOG=DEBUG .venv/bin/kwhisper`).
+- **Pastes wrong in a terminal** → terminal detection (to use `Ctrl+Shift+V`)
+  uses KWin over D-Bus; check with `kwhisper-doctor` that the backend isn't
+  «none». If it is, install `kdotool` or check `gdbus`/`journalctl`. You can also
+  force `[inject] paste_key = "ctrl+shift+v"` if you dictate mostly in terminals.
+- **View logs**: `journalctl --user -u kwhisper -f` (or `KWHISPER_LOG=DEBUG .venv/bin/kwhisper`).
 
-## Arquitectura
+## Architecture
 
 ```
-HotkeyListener (evdev) ─KEY_DOWN→ grabar ─KEY_UP→ AudioRecorder (sounddevice 16k)
-        │                                              │ buffer float32
+HotkeyListener (evdev) ─KEY_DOWN→ record ─KEY_UP→ AudioRecorder (sounddevice 16k)
+        │                                              │ float32 buffer
         ▼                                              ▼
-   (1 proceso PySide6)                         STTEngine (faster-whisper, VRAM)
-   Tray + Overlay + Feedback                          │ texto
+   (1 PySide6 process)                         STTEngine (faster-whisper, VRAM)
+   Tray + Overlay + Feedback                          │ text
                                                        ▼
                                        IntentRouter (Ollama gemma3, JSON)
-                                          │ dictado            │ comando
+                                          │ dictation          │ command
                                           ▼                    ▼
                                    TextInjector          CommandExecutor
-                                (wl-copy + Ctrl+V)     (abrir app / pulsar tecla)
+                                (wl-copy + Ctrl+V)     (open app / press key)
 ```
 
-Procesos externos: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
+External processes: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 
-## Hoja de ruta
+## Roadmap
 
-- [ ] Doble hotkey dedicado (una tecla = dictado, otra = comando) para cero ambigüedad.
-- [ ] Diálogo de configuración gráfico (PySide6).
-- [ ] Comandos de edición fijos («nueva línea», «borra eso»).
-- [ ] Plasmoid de panel opcional (estado vía D-Bus).
-- [ ] PKGBUILD para AUR.
+- [ ] Dedicated dual hotkey (one key = dictation, another = command) for zero ambiguity.
+- [ ] Graphical configuration dialog (PySide6).
+- [ ] Fixed editing commands («new line», «delete that»).
+- [ ] Optional panel plasmoid (status via D-Bus).
+- [ ] PKGBUILD for the AUR.
 
-## Licencia
+## License
 
-[MPL-2.0](LICENSE) (Mozilla Public License 2.0): copyleft a nivel de fichero.
-Puedes usar y redistribuir kwhisper, incluso junto a software comercial cerrado.
-Pero si **modificas** un fichero cubierto, debes publicar el código fuente de
-**ese fichero** bajo MPL-2.0. Lo que añadas en ficheros nuevos puede ser cerrado.
+[MPL-2.0](LICENSE) (Mozilla Public License 2.0): file-level copyleft.
+You can use and redistribute kwhisper, even alongside closed commercial software.
+But if you **modify** a covered file, you must publish the source code of **that
+file** under MPL-2.0. Whatever you add in new files can be closed.
