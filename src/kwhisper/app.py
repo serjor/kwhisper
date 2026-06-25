@@ -250,6 +250,10 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     cfg = load_config()
+    # Bajo systemd --user el bus de sesión puede no estar en el entorno: sin él
+    # la detección de terminal (KWin/gdbus) falla y se pega con Ctrl+V en konsole.
+    from .window import ensure_session_bus
+    ensure_session_bus()
     if cfg.stt.device == "cuda":
         from .stt import ensure_cuda_lib_path
         ensure_cuda_lib_path()

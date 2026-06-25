@@ -19,8 +19,11 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-# Importa el entorno gráfico al arrancar (el '-' evita abortar si falla):
-ExecStartPre=-/usr/bin/systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR DISPLAY
+# Importa el entorno gráfico al arrancar (el '-' evita abortar si falla).
+# DBUS_SESSION_BUS_ADDRESS es clave: sin él `gdbus --session` no alcanza a KWin y
+# la detección de terminal falla en silencio (se pega con Ctrl+V en konsole, que
+# no pega). kwhisper también lo deriva de XDG_RUNTIME_DIR/bus si aquí no llega.
+ExecStartPre=-/usr/bin/systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR DISPLAY DBUS_SESSION_BUS_ADDRESS
 ExecStart=%h/Projects/kde/kwhisper/.venv/bin/kwhisper
 Restart=on-failure
 RestartSec=3

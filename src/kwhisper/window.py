@@ -34,6 +34,29 @@ _PLUGIN = "kwhisper-activewindow"
 _MARKER = "KWHISPER_AW:"
 
 
+def ensure_session_bus() -> None:
+    """Garantiza ``DBUS_SESSION_BUS_ADDRESS`` para que ``gdbus --session`` alcance
+    a KWin cuando kwhisper arranca como servicio de usuario.
+
+    systemd ``--user`` no siempre propaga esta variable al entorno de la unidad
+    (la lista de ``import-environment`` es limitada), y sin ella la detección de
+    terminal falla en silencio: se acaba pegando con ``Ctrl+V`` en konsole, que
+    no pega. El bus de sesión del usuario vive de forma fiable en
+    ``$XDG_RUNTIME_DIR/bus``; lo fijamos si falta. Idempotente y barato: igual que
+    ``inject._ydotool_env`` deriva ``YDOTOOL_SOCKET`` de ``XDG_RUNTIME_DIR``.
+    """
+    if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        return
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime_dir:
+        log.debug("XDG_RUNTIME_DIR no definido; no se puede derivar el bus de sesión.")
+        return
+    sock = os.path.join(runtime_dir, "bus")
+    if os.path.exists(sock):
+        os.environ["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={sock}"
+        log.debug("DBUS_SESSION_BUS_ADDRESS no estaba definido; usando %s", sock)
+
+
 def _build_script(nonce: str) -> str:
     # El nonce hace inequívoco el marcador en el journal (que solo tiene
     # resolución de 1 s): así no se lee el resultado de una consulta anterior
@@ -46,6 +69,9 @@ def _build_script(nonce: str) -> str:
 
 class WindowDetector:
     def __init__(self):
+        # El bus de sesión debe estar disponible antes de la primera consulta a
+        # KWin; bajo systemd puede no haberse propagado al entorno de la unidad.
+        ensure_session_bus()
         self._kdotool = shutil.which("kdotool")
         self._gdbus = shutil.which("gdbus")
         self._journalctl = shutil.which("journalctl")
