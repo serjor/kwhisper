@@ -45,7 +45,8 @@ Tres trampas de Wayland/Blackwell que condicionan el diseño:
 ## Instalación
 
 ```fish
-cd ~/Projects/kde/kwhisper
+# Clónalo DONDE QUIERAS: setup.sh detecta la ruta automáticamente.
+cd /ruta/donde/clonaste/kwhisper
 bash scripts/setup.sh
 ```
 

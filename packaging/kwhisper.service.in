@@ -1,9 +1,13 @@
-# Servicio systemd de USUARIO para kwhisper.
-# Instala en: ~/.config/systemd/user/kwhisper.service
+# PLANTILLA del servicio systemd de USUARIO para kwhisper. NO la uses tal cual:
+# `scripts/setup.sh` la instala en ~/.config/systemd/user/kwhisper.service
+# sustituyendo @KWHISPER_BIN@ por la ruta real del binario del venv (el proyecto
+# puede estar clonado en cualquier sitio, no asume ninguna ruta concreta).
+#
+# Para instalarla a mano: cópiala a ~/.config/systemd/user/kwhisper.service,
+# reemplaza @KWHISPER_BIN@ por la ruta de tu binario (p.ej.
+# /ruta/al/repo/.venv/bin/kwhisper) y luego:
 #   systemctl --user daemon-reload
 #   systemctl --user enable --now kwhisper
-#
-# Ajusta ExecStart a la ruta real de tu venv si cambias el proyecto de sitio.
 
 [Unit]
 Description=kwhisper — dictado por voz local (KDE Wayland)
@@ -24,7 +28,7 @@ Type=simple
 # la detección de terminal falla en silencio (se pega con Ctrl+V en konsole, que
 # no pega). kwhisper también lo deriva de XDG_RUNTIME_DIR/bus si aquí no llega.
 ExecStartPre=-/usr/bin/systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR DISPLAY DBUS_SESSION_BUS_ADDRESS
-ExecStart=%h/Projects/kde/kwhisper/.venv/bin/kwhisper
+ExecStart=@KWHISPER_BIN@
 Restart=on-failure
 RestartSec=3
 Slice=app.slice
