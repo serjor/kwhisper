@@ -68,6 +68,22 @@ def _paste_args(combo: str) -> list[str]:
     return seq
 
 
+def _pick_clipboard_type(types_text: str) -> str:
+    """Elige el tipo MIME a guardar/restaurar de la salida de ``wl-paste --list-types``.
+
+    Prefiere texto plano sobre ``text/html``: restaurar con ``wl-copy -t text/html``
+    hace que ``wl-copy`` ofrezca ese HTML bajo TODOS los alias de texto
+    (``text/plain`` incluido), y entonces konsole pega el HTML crudo en vez del
+    texto. Si no hay texto plano, cae al primer tipo ofrecido, para conservar
+    imágenes u otros contenidos no textuales.
+    """
+    types = [t.strip() for t in types_text.splitlines() if t.strip()]
+    for t in types:
+        if t.lower().startswith("text/plain"):
+            return t
+    return types[0] if types else ""
+
+
 class TextInjector:
     def __init__(self, cfg: InjectConfig):
         self.cfg = cfg
@@ -195,7 +211,7 @@ class TextInjector:
             types = subprocess.run(["wl-paste", "--list-types"],
                                    capture_output=True, text=True, timeout=3)
             if types.returncode == 0 and types.stdout.strip():
-                mime = types.stdout.strip().splitlines()[0].strip()
+                mime = _pick_clipboard_type(types.stdout)
             cmd = ["wl-paste", "-n", *(["-t", mime] if mime else [])]
             out = subprocess.run(cmd, capture_output=True, timeout=10)
             if out.returncode != 0:

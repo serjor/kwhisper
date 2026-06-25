@@ -20,6 +20,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 
 from .config import CONFIG_PATH, Config, load_config
 
@@ -61,6 +62,9 @@ class KWhisper:
         self.feedback = Feedback(cfg.ui)
         self._listener = None
         self._quitting = False
+        # Lo crea setup_ui() según cfg.ui.overlay; default aquí para que el
+        # atributo exista siempre (el worker lo consulta antes de inyectar).
+        self.overlay = None
 
     # ---------- ciclo de vida ----------
     def setup_ui(self) -> None:
@@ -86,6 +90,21 @@ class KWhisper:
     def _do_notify(self, title: str, msg: str) -> None:
         if self.cfg.ui.notifications:
             self.tray.notify(title, msg)
+
+    def _hide_overlay_before_inject(self) -> None:
+        """Oculta el overlay y cede un margen antes de inyectar el texto.
+
+        Bajo KWin Wayland el overlay puede llevarse el foco de teclado pese a sus
+        flags de no-activación; si sigue visible al pegar, el Ctrl+Shift+V acaba
+        en el overlay (que lo ignora) y no se pega nada. Lo ocultamos primero y
+        esperamos un instante a que el compositor devuelva el foco a la ventana
+        destino. El emit se entrega en cola al hilo Qt, así que la breve espera
+        da margen a que la ocultación se procese de verdad antes del pegado.
+        """
+        if self.overlay is None:
+            return
+        self.ctrl.overlay.emit("", "")
+        time.sleep(0.12)
 
     def start_listener(self) -> None:
         if self.cfg.hotkey.backend == "portal":
@@ -199,6 +218,10 @@ class KWhisper:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit("Comando", msg)
             else:
+                # Ocultar el overlay ANTES de inyectar para que no se quede con
+                # el foco de teclado bajo KWin Wayland (si no, el Ctrl+Shift+V
+                # iría al overlay y no se pegaría nada en la ventana destino).
+                self._hide_overlay_before_inject()
                 self.injector.inject(intent.texto or text)
         except Exception as exc:  # noqa: BLE001
             log.exception("Error en el pipeline")
@@ -250,6 +273,10 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     cfg = load_config()
+    # Bajo systemd --user el bus de sesión puede no estar en el entorno: sin él
+    # la detección de terminal (KWin/gdbus) falla y se pega con Ctrl+V en konsole.
+    from .window import ensure_session_bus
+    ensure_session_bus()
     if cfg.stt.device == "cuda":
         from .stt import ensure_cuda_lib_path
         ensure_cuda_lib_path()

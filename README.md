@@ -45,7 +45,8 @@ Tres trampas de Wayland/Blackwell que condicionan el diseño:
 ## Instalación
 
 ```fish
-cd ~/Projects/kde/kwhisper
+# Clónalo DONDE QUIERAS: setup.sh detecta la ruta automáticamente.
+cd /ruta/donde/clonaste/kwhisper
 bash scripts/setup.sh
 ```
 
@@ -140,6 +141,12 @@ Ejemplos de comandos (lenguaje natural, en español):
   pidió tarde; sube `[inject] restore_delay` (p.ej. a `0.8`).
 - **Error CUDA / `libcudnn`** → lo gestiona el re-exec de `LD_LIBRARY_PATH`; si
   persiste, no mezcles con el `python-pytorch` del sistema (usa el venv aislado).
+- **Funciona a mano pero como servicio no pega (sobre todo en konsole)** → bajo
+  `systemctl --user` falta `DBUS_SESSION_BUS_ADDRESS`, así que `gdbus` no alcanza a
+  KWin y la detección de terminal cae a `Ctrl+V` (konsole no pega con eso). kwhisper
+  ya lo deriva de `$XDG_RUNTIME_DIR/bus`; si aún falla, `kwhisper-doctor` te dirá si
+  el «bus de sesión D-Bus» está ausente. Reinstala la unidad actualizada:
+  `systemctl --user daemon-reload && systemctl --user restart kwhisper`.
 - **En terminal pega mal** → la detección de terminal (para usar `Ctrl+Shift+V`)
   usa KWin por D-Bus; comprueba con `kwhisper-doctor` que el backend no sea
   «ninguno». Si lo es, instala `kdotool` o revisa `gdbus`/`journalctl`. También

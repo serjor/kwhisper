@@ -27,6 +27,20 @@ def test_paste_args_terminal():
     assert _paste_args("ctrl+shift+v") == ["29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
 
 
+def test_pick_clipboard_type_prefers_plain():
+    # konsole ofrece text/html PRIMERO; guardar/restaurar ese tipo contaminaba
+    # los alias de texto con HTML crudo. Debe preferirse text/plain.
+    from kwhisper.inject import _pick_clipboard_type
+    konsole = "text/html\ntext/plain\ntext/plain;charset=utf-8\nTEXT\nSTRING\nUTF8_STRING"
+    assert _pick_clipboard_type(konsole) == "text/plain"
+    # Sin texto plano (p.ej. una imagen) se conserva el primer tipo ofrecido.
+    assert _pick_clipboard_type("image/png\nimage/bmp") == "image/png"
+    # Solo text/plain con charset: se respeta tal cual.
+    assert _pick_clipboard_type("text/html\ntext/plain;charset=utf-8") == "text/plain;charset=utf-8"
+    # Lista vacía → cadena vacía (no revienta).
+    assert _pick_clipboard_type("") == ""
+
+
 def test_config_defaults():
     from kwhisper.config import Config
     cfg = Config()
@@ -52,6 +66,35 @@ def test_invalid_backend_rejected():
     except ValidationError:
         return
     raise AssertionError("backend inválido debería lanzar ValidationError")
+
+
+def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
+    # Sin DBUS_SESSION_BUS_ADDRESS pero con $XDG_RUNTIME_DIR/bus presente, se
+    # deriva la dirección del bus (caso systemd --user que rompía el pegado).
+    import os
+    from kwhisper.window import ensure_session_bus
+
+    saved = {k: os.environ.get(k) for k in ("DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR")}
+    runtime = Path(__file__).resolve().parent / "_busdir_tmp"
+    try:
+        runtime.mkdir(exist_ok=True)
+        (runtime / "bus").write_bytes(b"")  # marcador del socket (basta que exista)
+        os.environ.pop("DBUS_SESSION_BUS_ADDRESS", None)
+        os.environ["XDG_RUNTIME_DIR"] = str(runtime)
+        ensure_session_bus()
+        assert os.environ["DBUS_SESSION_BUS_ADDRESS"] == f"unix:path={runtime / 'bus'}"
+        # Idempotente: no pisa un valor ya presente.
+        os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/keep/me"
+        ensure_session_bus()
+        assert os.environ["DBUS_SESSION_BUS_ADDRESS"] == "unix:path=/keep/me"
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        (runtime / "bus").unlink(missing_ok=True)
+        runtime.rmdir()
 
 
 def test_command_key_resolution():

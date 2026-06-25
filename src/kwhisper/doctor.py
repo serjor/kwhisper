@@ -73,6 +73,16 @@ def _check_wayland_tools() -> None:
         _line(OK, "socket ydotoold", sock)
     else:
         _line(WARN, "socket ydotoold no existe", f"{sock} — arranca: systemctl --user enable --now ydotool")
+    # bus de sesión D-Bus (necesario para la detección de terminal por KWin;
+    # bajo systemd puede no propagarse y entonces se pega con Ctrl+V en konsole).
+    from .window import ensure_session_bus
+    ensure_session_bus()
+    bus = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+    if bus:
+        _line(OK, "bus de sesión D-Bus", bus)
+    else:
+        _line(WARN, "bus de sesión D-Bus ausente",
+              "sin DBUS_SESSION_BUS_ADDRESS ni $XDG_RUNTIME_DIR/bus — KWin no es alcanzable")
     # detección de terminal (Ctrl+Shift+V)
     try:
         from .window import WindowDetector

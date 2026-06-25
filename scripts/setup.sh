@@ -74,7 +74,7 @@ ok "ydotool.service activado (si no dio error)."
 say "Servicio systemd de usuario kwhisper"
 UNIT_DIR="$HOME/.config/systemd/user"
 mkdir -p "$UNIT_DIR"
-sed "s#%h/Projects/kde/kwhisper#$PROJECT_DIR#g" "$PROJECT_DIR/packaging/kwhisper.service" > "$UNIT_DIR/kwhisper.service"
+sed "s#@KWHISPER_BIN@#$VENV/bin/kwhisper#g" "$PROJECT_DIR/packaging/kwhisper.service.in" > "$UNIT_DIR/kwhisper.service"
 systemctl --user daemon-reload
 # Importa el entorno gráfico al systemd de usuario por si Plasma no lo hace solo
 # (si no, la unidad podría quedar "condition failed" en silencio).
