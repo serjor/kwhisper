@@ -27,6 +27,20 @@ def test_paste_args_terminal():
     assert _paste_args("ctrl+shift+v") == ["29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
 
 
+def test_pick_clipboard_type_prefers_plain():
+    # konsole ofrece text/html PRIMERO; guardar/restaurar ese tipo contaminaba
+    # los alias de texto con HTML crudo. Debe preferirse text/plain.
+    from kwhisper.inject import _pick_clipboard_type
+    konsole = "text/html\ntext/plain\ntext/plain;charset=utf-8\nTEXT\nSTRING\nUTF8_STRING"
+    assert _pick_clipboard_type(konsole) == "text/plain"
+    # Sin texto plano (p.ej. una imagen) se conserva el primer tipo ofrecido.
+    assert _pick_clipboard_type("image/png\nimage/bmp") == "image/png"
+    # Solo text/plain con charset: se respeta tal cual.
+    assert _pick_clipboard_type("text/html\ntext/plain;charset=utf-8") == "text/plain;charset=utf-8"
+    # Lista vacía → cadena vacía (no revienta).
+    assert _pick_clipboard_type("") == ""
+
+
 def test_config_defaults():
     from kwhisper.config import Config
     cfg = Config()
