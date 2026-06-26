@@ -217,7 +217,7 @@ def _matching_pids(names: set[str]) -> list[int]:
             if raw and raw[0]:
                 argv0 = os.path.basename(raw[0].decode("utf-8", "replace")).lower()
         except OSError:
-            pass
+            pass  # unreadable cmdline (gone/permission); fall back to comm-only match
         if comm in truncated or (argv0 and argv0 in targets):
             pids.append(pid)
     return pids
