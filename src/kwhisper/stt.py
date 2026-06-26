@@ -44,6 +44,11 @@ def ensure_cuda_lib_path() -> None:
     current = os.environ.get("LD_LIBRARY_PATH", "")
     if all(p in current.split(":") for p in paths):
         return
+    # Remember the user's ORIGINAL LD_LIBRARY_PATH so the TTS worker can restore it:
+    # the worker must NOT inherit the ct2 cuDNN-9 paths we prepend below, but it
+    # should keep whatever the user had set.
+    if current:
+        os.environ["KWHISPER_ORIG_LD_LIBRARY_PATH"] = current
     os.environ["LD_LIBRARY_PATH"] = ":".join(paths + ([current] if current else []))
     os.environ["KWHISPER_LDPATH_SET"] = "1"
     os.execv(sys.executable, [sys.executable, *sys.argv])

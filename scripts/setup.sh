@@ -51,6 +51,60 @@ say "Instalando kwhisper y dependencias (esto descarga las libs CUDA, puede tard
 VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR"
 ok "kwhisper instalado en el venv."
 
+# 3b) TTS: OPTIONAL voice output (spoken feedback + answers) -------------------
+say "Voz (TTS) — OPCIONAL: feedback y respuestas habladas"
+if ask "¿Instalar la salida de voz (Piper, CPU, sin torch)?"; then
+  VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts]" \
+    || warn "No pude instalar el extra TTS (piper-tts, kokoro-onnx)."
+  # Voice models (not shipped by pip). Idempotent download into the XDG data dir
+  # that TTSConfig.model_dir defaults to. Default engine is Piper (Castilian es-ES).
+  MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/kwhisper/models"
+  PIPER_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/sharvard/medium"
+  mkdir -p "$MODELS_DIR"
+  for f in es_ES-sharvard-medium.onnx es_ES-sharvard-medium.onnx.json; do
+    if [[ -s "$MODELS_DIR/$f" ]]; then
+      ok "$f ya descargado."
+    elif curl -fsSL -o "$MODELS_DIR/$f" "$PIPER_BASE/$f"; then
+      ok "$f → $MODELS_DIR"
+    else
+      warn "No pude descargar $f (voz Piper es_ES)."
+    fi
+  done
+  echo "    Voz por defecto: Piper es_ES-sharvard-medium#1 (castellano de España, femenina)."
+  echo "    Para usar Kokoro: [tts] engine = \"kokoro\" y descarga sus modelos (ver README)."
+  if ask "¿Instalar además Chatterbox (respuestas neuronales, torch cu128, descarga grande)?"; then
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts-chatterbox]" \
+      || warn "No pude instalar chatterbox-tts."
+    # Blackwell sm_120: override Chatterbox's torch==2.6.0 pin (no sm_120 kernels)
+    # with cu128 wheels AFTER installing it. PyPI doesn't serve cu128 → index-url.
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" --upgrade \
+      torch torchaudio --index-url https://download.pytorch.org/whl/cu128 \
+      || warn "No pude forzar torch cu128; Chatterbox puede fallar en la RTX 50xx."
+    # Forcing torch may pull a cuDNN/cuBLAS that breaks faster-whisper/ct2. Re-pin the
+    # cuDNN and VERIFY with a REAL GPU inference: an import alone won't surface a
+    # cuBLAS/cuDNN ABI clash, which only fails at the first transcription.
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" "nvidia-cudnn-cu12==9.*" || true
+    if "$VENV/bin/python" - <<'PY' 2>/dev/null
+import numpy as np
+from faster_whisper import WhisperModel
+m = WhisperModel("tiny", device="cuda", compute_type="float16")
+list(m.transcribe(np.zeros(16000, dtype="float32"))[0])  # 1s silence forces cuBLAS/cuDNN
+PY
+    then
+      ok "faster-whisper sigue transcribiendo en GPU tras instalar torch cu128."
+    else
+      warn "La STT en GPU ya NO funciona (choque de cuDNN/cuBLAS con torch cu128)."
+      echo "    Aísla Chatterbox en un venv SOLO para el worker (necesita kwhisper+kokoro+sounddevice):"
+      echo "      uv venv --system-site-packages /ruta/tts-venv"
+      echo "      uv pip install --python /ruta/tts-venv/bin/python -e \"$PROJECT_DIR[tts,tts-chatterbox]\""
+      echo "      uv pip install --python /ruta/tts-venv/bin/python --upgrade torch torchaudio --index-url https://download.pytorch.org/whl/cu128"
+      echo "      export KWHISPER_TTS_PYTHON=/ruta/tts-venv/bin/python"
+    fi
+  fi
+else
+  ok "TTS omitido (puedes instalarlo luego:  uv pip install -e \"$PROJECT_DIR[tts]\")."
+fi
+
 # 4) input group (evdev push-to-talk) -----------------------------------------
 say "Permiso de teclado para push-to-talk (grupo input)"
 if id -nG "$USER" | tr ' ' '\n' | grep -qx input; then

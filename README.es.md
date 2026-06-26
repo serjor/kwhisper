@@ -14,6 +14,9 @@ nada sale a internet.
 - **Activación**: push-to-talk vía `evdev` (mantener pulsado).
 - **Inyección**: portapapeles + `Ctrl+V` (acentos del español 100% fiables en KWin).
 - **UI**: icono de bandeja + overlay flotante + sonidos.
+- **Voz (TTS, opcional)**: lee confirmaciones y responde preguntas en voz alta
+  (Piper en castellano de España, o Kokoro/Chatterbox) desde un subproceso aislado.
+  Desactivado por defecto.
 
 > Diseñado y verificado para: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
 > (Blackwell `sm_120`) · PipeWire. Debería valer en cualquier Arch+KDE con GPU NVIDIA.
@@ -60,6 +63,10 @@ El script (idempotente, pide confirmación antes de cada cambio con `sudo`):
 3. Crea el venv con `uv` (`--system-site-packages` para reutilizar el PySide6 de pacman) e instala kwhisper + libs CUDA.
 4. Te añade al grupo `input` (push-to-talk). **Requiere cerrar sesión y volver a entrar.**
 5. Activa `ydotool.service` (usuario) e instala la unidad `kwhisper.service`.
+
+El script también **ofrece (opcional) la voz/TTS**: instala Piper y Kokoro y
+descarga los modelos de la voz Piper por defecto, y opcionalmente Chatterbox con
+torch cu128 para Blackwell.
 
 Después:
 
@@ -116,6 +123,20 @@ Ejemplos de comandos (lenguaje natural, en español):
 > Ante la duda, el clasificador escribe (dictado). Si Ollama no está disponible,
 > kwhisper sigue funcionando solo como dictado.
 
+### Voz (TTS) — opcional
+
+Con `[tts] enabled = true` (instala antes el extra, ver Instalación):
+
+- **Feedback hablado**: las confirmaciones de comandos se leen en voz alta (Kokoro).
+- **Modo pregunta**: si empiezas por una frase de activación («oye asistente …»,
+  «oye kwhisper …»), lo que sigue se manda al LLM y la respuesta se **lee** (no se
+  escribe). Ej.: «oye asistente, ¿qué hora es?». Pulsa PTT de nuevo para cortar una
+  respuesta larga (barge-in).
+
+Los motores neuronales corren en un **subproceso aislado** para que torch
+(Chatterbox) no rompa el faster-whisper de Blackwell: si fallan, solo cae el TTS,
+nunca el dictado.
+
 ## Configuración
 
 `~/.config/kwhisper/config.toml` (se crea solo la primera vez). Tras editar:
@@ -136,6 +157,16 @@ Ejemplos de comandos (lenguaje natural, en español):
 - `[ui] lang` — idioma de la interfaz (overlay, notificaciones, bandeja) y de las
   herramientas de línea de comandos: `"auto"` (detectar del locale del sistema),
   `"es"` o `"en"`.
+- `[tts] enabled` — `false` (por defecto) desactiva la voz. `true` requiere el extra
+  TTS instalado (`scripts/setup.sh` lo ofrece).
+- `[tts] speak_feedback` / `speak_answers` — leer confirmaciones de comando / leer
+  las respuestas del modo pregunta.
+- `[tts] engine` — `"piper"` (castellano es-ES, natural, recomendado) · `"kokoro"`
+  (multilingüe, pero español latino) · `"chatterbox"` (torch cu128, opt-in; requiere Python <3.14).
+- `[tts] voice` — según el motor: Piper `es_ES-sharvard-medium#1` (femenina) / `#0`
+  (masculina) / `es_ES-davefx-medium`; Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] activation_phrases` — frases que abren el modo pregunta (la transcripción
+  debe **empezar** por una). Mantenlas distintivas y de varias palabras.
 
 ## Solución de problemas
 
@@ -182,6 +213,7 @@ Procesos externos: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 
 - [ ] Doble hotkey dedicado (una tecla = dictado, otra = comando) para cero ambigüedad.
 - [x] Diálogo de configuración gráfico (PySide6) + asistente de primer arranque (idioma, modelo, prompt de sistema).
+- [x] Salida de voz (TTS): feedback hablado + modo pregunta con respuesta leída (Kokoro/Chatterbox).
 - [ ] Comandos de edición fijos («nueva línea», «borra eso»).
 - [ ] Plasmoid de panel opcional (estado vía D-Bus).
 - [ ] PKGBUILD para AUR.

@@ -131,6 +131,52 @@ def _check_ollama() -> None:
         _line(WARN, t("doctor.ollama_unavailable"), t("doctor.ollama_unavailable_detail", error=exc))
 
 
+def _check_tts() -> None:
+    print("\n" + t("doctor.sec_tts"))
+    import os.path
+
+    from .config import load_config
+    from .tts import default_model_dir
+    cfg = load_config().tts
+    if not cfg.enabled:
+        _line(WARN, t("doctor.tts_disabled"))
+    model_dir = cfg.model_dir or str(default_model_dir())
+
+    def _check_models(files: tuple[str, ...]) -> None:
+        for f in files:
+            if os.path.exists(os.path.join(model_dir, f)):
+                _line(OK, t("doctor.tts_model_present", model=f))
+            else:
+                _line(WARN, t("doctor.tts_model_absent", model=f),
+                      t("doctor.tts_model_absent_detail", dir=model_dir))
+
+    if cfg.engine == "piper":
+        model = cfg.voice.partition("#")[0]  # strip optional "#<speaker_id>"
+        _check_models((model + ".onnx", model + ".onnx.json"))
+        try:
+            import piper  # noqa: F401
+            _line(OK, t("doctor.tts_piper_ok"))
+        except Exception as exc:  # noqa: BLE001
+            _line(WARN, t("doctor.tts_piper_fail"), str(exc))
+    elif cfg.engine == "kokoro":
+        _check_models(("kokoro-v1.0.onnx", "voices-v1.0.bin"))
+        try:
+            import kokoro_onnx  # noqa: F401
+            _line(OK, t("doctor.tts_kokoro_ok"))
+        except Exception as exc:  # noqa: BLE001
+            _line(WARN, t("doctor.tts_kokoro_fail"), str(exc))
+    elif cfg.engine == "chatterbox":
+        # Only import torch (heavy, loads CUDA) when Chatterbox is the chosen engine.
+        try:
+            import torch
+            if torch.cuda.is_available():
+                _line(OK, t("doctor.tts_torch_gpu"))
+            else:
+                _line(WARN, t("doctor.tts_torch_cpu"))
+        except Exception as exc:  # noqa: BLE001
+            _line(WARN, t("doctor.tts_chatterbox_fail"), str(exc))
+
+
 def main() -> int:
     from .config import load_config
     set_language(load_config().ui.lang)
@@ -139,6 +185,7 @@ def main() -> int:
     _check_wayland_tools()
     _check_permissions()
     _check_ollama()
+    _check_tts()
     from .config import CONFIG_PATH
     state = t("doctor.config_exists") if CONFIG_PATH.exists() else t("doctor.config_will_create")
     print("\n" + t("doctor.config_line", path=CONFIG_PATH, state=state))

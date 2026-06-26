@@ -84,6 +84,15 @@ _FEWSHOT = [
 ]
 
 
+# System prompt for question mode (B). Kept separate from the classifier prompt
+# on purpose: answers are free-form chat, NOT structured output, so they never
+# touch the tested dictation/command classification.
+_ANSWER_SYSTEM = (
+    "Eres un asistente de voz en español. Responde de forma BREVE y conversacional, "
+    "en 1-3 frases, SIN Markdown, listas ni bloques de código: tu respuesta se leerá "
+    "en voz alta. Si no sabes algo, dilo en una sola frase.")
+
+
 class IntentRouter:
     def __init__(self, cfg: LLMConfig):
         self.cfg = cfg
@@ -124,6 +133,33 @@ class IntentRouter:
             intent.text = transcription
         log.info("Intent: kind=%s action=%s arg=%r", intent.kind, intent.action, intent.argument)
         return intent
+
+    def answer(self, question: str) -> str:
+        """Free-form conversational answer for question mode (TTS reads it).
+
+        A second Ollama call in plain chat mode (no JSON ``format``, no
+        ``temperature=0``). On any failure returns ``""`` so the caller can fall
+        back gracefully; this never raises and never affects classification.
+        """
+        if not question.strip():
+            return ""
+        try:
+            resp = self._client.post("/api/chat", json={
+                "model": self.cfg.model,
+                "stream": False,
+                "messages": [
+                    {"role": "system", "content": _ANSWER_SYSTEM},
+                    {"role": "user", "content": question},
+                ],
+            }, timeout=max(self.cfg.timeout, 30.0))  # answers are slower than classify
+            resp.raise_for_status()
+            # Null-safe: a present-but-null message/content must not raise (the
+            # docstring promises this never throws).
+            message = resp.json().get("message") or {}
+            return (message.get("content") or "").strip()
+        except (httpx.HTTPError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            log.warning("LLM answer failed (%s)", exc)
+            return ""
 
     def close(self) -> None:
         self._client.close()

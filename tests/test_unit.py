@@ -291,6 +291,66 @@ def test_matching_pids_detects_child():
         proc.wait(timeout=5)
 
 
+def test_activation_matcher_strips_phrase_and_question():
+    from kwhisper.tts import ActivationMatcher
+    m = ActivationMatcher(["oye asistente", "oye kwhisper", "pregunta"])
+    # Accent/case-insensitive; the activation phrase is stripped, the question kept.
+    assert m.match("Oye asistente, ¿qué hora es?") == "qué hora es"
+    assert m.match("oye kwhisper cuéntame un chiste") == "cuéntame un chiste"
+    assert m.match("Pregunta cuánto es dos más dos") == "cuánto es dos más dos"
+
+
+def test_activation_matcher_ignores_non_questions():
+    from kwhisper.tts import ActivationMatcher
+    m = ActivationMatcher(["oye asistente", "pregunta"])
+    # No activation phrase at the START → normal dictation (None).
+    assert m.match("el año pasado estuve en España") is None
+    # The phrase must OPEN the text; mid-sentence does not trigger.
+    assert m.match("dime qué pasó y oye asistente escucha") is None
+
+
+def test_activation_matcher_longest_phrase_wins():
+    from kwhisper.tts import ActivationMatcher
+    # With overlapping prefixes the most specific (more words) must win, so the
+    # remaining question is stripped correctly (not left with "asistente …").
+    m = ActivationMatcher(["oye", "oye asistente"])
+    assert m.match("oye asistente dime la hora") == "dime la hora"
+
+
+def test_activation_matcher_tolerates_commas_in_phrase():
+    from kwhisper.tts import ActivationMatcher
+    # Whisper routinely punctuates the interjection ("Oye, asistente, ¿qué…");
+    # token-by-token matching must still detect it (a string-prefix check wouldn't).
+    m = ActivationMatcher(["oye asistente", "oye kwhisper"])
+    assert m.match("Oye, asistente, ¿qué hora es?") == "qué hora es"
+    assert m.match("oye, kwhisper, pon música") == "pon música"
+
+
+def test_activation_matcher_bare_wakeword_is_empty():
+    from kwhisper.tts import ActivationMatcher
+    # A bare wakeword with no question returns "" (falsy), so app.py routes it to
+    # normal dictation instead of sending the bare phrase to the LLM.
+    m = ActivationMatcher(["oye asistente"])
+    assert m.match("oye asistente") == ""
+    assert m.match("Oye, asistente.") == ""
+
+
+def test_ttsplayer_disabled_is_inert():
+    # With the default (enabled=false) nothing is spawned or queued: current
+    # users see zero behaviour change and no subprocess is ever launched.
+    from kwhisper.config import TTSConfig
+    from kwhisper.tts import TTSPlayer
+
+    p = TTSPlayer(TTSConfig(enabled=False))
+    p.speak_feedback("hola")
+    p.speak_answer("hola")
+    p.cancel()
+    assert p._pump is None
+    assert p._q.empty()
+    assert p._proc is None
+    p.close()
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

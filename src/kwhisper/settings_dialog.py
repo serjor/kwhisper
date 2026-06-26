@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .config import LLMConfig, UIConfig
+from .config import LLMConfig, TTSConfig, UIConfig
 from .i18n import t
 from .llm import DEFAULT_SYSTEM_PROMPT, list_models, normalize_system_prompt
 
@@ -43,7 +44,8 @@ _LANGS = [("auto", "settings.lang_auto"), ("es", "Español"), ("en", "English")]
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, ui_cfg: UIConfig, llm_cfg: LLMConfig, parent: QWidget | None = None):
+    def __init__(self, ui_cfg: UIConfig, llm_cfg: LLMConfig, tts_cfg: TTSConfig,
+                 parent: QWidget | None = None):
         super().__init__(parent)
         self._llm_cfg = llm_cfg
         self.setWindowTitle(t("settings.title"))
@@ -81,6 +83,41 @@ class SettingsDialog(QDialog):
         self._model_hint.setStyleSheet("color: palette(mid);")
         form.addRow("", self._model_hint)
         self._reload_models()  # populates from Ollama; keeps the configured model selected
+
+        # --- Voice output (TTS) ---
+        tts_box = QGroupBox(t("settings.tts_enable"))
+        tts_form = QFormLayout(tts_box)
+        self._tts_enabled = QCheckBox()
+        self._tts_enabled.setChecked(tts_cfg.enabled)
+        tts_form.addRow(t("settings.tts_enable"), self._tts_enabled)
+        self._tts_feedback = QCheckBox()
+        self._tts_feedback.setChecked(tts_cfg.speak_feedback)
+        tts_form.addRow(t("settings.tts_feedback"), self._tts_feedback)
+        self._tts_answers = QCheckBox()
+        self._tts_answers.setChecked(tts_cfg.speak_answers)
+        tts_form.addRow(t("settings.tts_answers"), self._tts_answers)
+        # Voice presets: each maps to an (engine, voice) pair, so the user picks a
+        # voice without separately reasoning about engines.
+        self._tts_voice = QComboBox()
+        for label, eng, voc in (
+            ("Piper · es-ES sharvard F (castellano, femenina)", "piper", "es_ES-sharvard-medium#1"),
+            ("Piper · es-ES sharvard M (castellano, masculina)", "piper", "es_ES-sharvard-medium#0"),
+            ("Piper · es-ES davefx (castellano, masculina)", "piper", "es_ES-davefx-medium"),
+            ("Kokoro · ef_dora (latam, f)", "kokoro", "ef_dora"),
+            ("Kokoro · em_alex (latam, m)", "kokoro", "em_alex"),
+            ("Kokoro · em_santa (latam, m)", "kokoro", "em_santa"),
+        ):
+            self._tts_voice.addItem(label, (eng, voc))
+        # Select the configured (engine, voice); keep a custom one if not listed.
+        target = (tts_cfg.engine, tts_cfg.voice)
+        idx = next((i for i in range(self._tts_voice.count())
+                    if self._tts_voice.itemData(i) == target), -1)
+        if idx < 0:
+            self._tts_voice.addItem(f"{tts_cfg.engine} · {tts_cfg.voice}", target)
+            idx = self._tts_voice.count() - 1
+        self._tts_voice.setCurrentIndex(idx)
+        tts_form.addRow(t("settings.tts_voice"), self._tts_voice)
+        root.addWidget(tts_box)
 
         # --- Advanced: system prompt (collapsed, with a serious warning) ---
         self._advanced = QGroupBox(t("settings.advanced"))
@@ -150,4 +187,9 @@ class SettingsDialog(QDialog):
             "ui_lang": self._lang.currentData(),
             "llm_model": self._model.currentText().strip() or self._llm_cfg.model,
             "llm_system_prompt": normalize_system_prompt(self._prompt.toPlainText()),
+            "tts_enabled": self._tts_enabled.isChecked(),
+            "tts_feedback": self._tts_feedback.isChecked(),
+            "tts_answers": self._tts_answers.isChecked(),
+            "tts_engine": self._tts_voice.currentData()[0],
+            "tts_voice": self._tts_voice.currentData()[1],
         }
