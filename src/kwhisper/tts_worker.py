@@ -73,10 +73,12 @@ class _Piper:
             kw = {"use_cuda": True} if self.cfg.get("device") == "cuda" else {}
             self._v = PiperVoice.load(os.path.join(d, name + ".onnx"), **kw)
         import numpy as np
-        syn = None
-        if self._sid is not None:
-            from piper import SynthesisConfig
-            syn = SynthesisConfig(speaker_id=self._sid)
+        from piper import SynthesisConfig
+        # normalize_audio=False + headroom (volume<1): Piper's default full-scale
+        # normalization makes some voices (e.g. sharvard) clip/crackle on consonant
+        # transients; leaving headroom removes the artefacts. speaker_id may be None
+        # for single-speaker models.
+        syn = SynthesisConfig(speaker_id=self._sid, normalize_audio=False, volume=0.85)
         chunks = list(self._v.synthesize(text, syn_config=syn))
         audio = np.concatenate([c.audio_float_array for c in chunks])
         return audio, chunks[0].sample_rate
