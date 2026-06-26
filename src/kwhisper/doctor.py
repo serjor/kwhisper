@@ -2,10 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Diagnóstico del entorno: ``kwhisper-doctor``.
+"""Environment diagnostics: ``kwhisper-doctor``.
 
-Comprueba GPU/CUDA, herramientas de Wayland, permisos y Ollama, e informa de qué
-falta para que kwhisper funcione. No modifica nada.
+Checks GPU/CUDA, Wayland tools, permissions and Ollama, and reports what is
+missing for kwhisper to work. It does not modify anything.
 """
 
 from __future__ import annotations
@@ -67,14 +67,14 @@ def _check_wayland_tools() -> None:
         else:
             _line(BAD if required else WARN, f"{tool} no instalado",
                   "" if required else "opcional")
-    # socket de ydotool
+    # ydotool socket
     sock = os.environ.get("YDOTOOL_SOCKET", f"/run/user/{os.getuid()}/.ydotool_socket")
     if os.path.exists(sock):
         _line(OK, "socket ydotoold", sock)
     else:
         _line(WARN, "socket ydotoold no existe", f"{sock} — arranca: systemctl --user enable --now ydotool")
-    # bus de sesión D-Bus (necesario para la detección de terminal por KWin;
-    # bajo systemd puede no propagarse y entonces se pega con Ctrl+V en konsole).
+    # D-Bus session bus (needed for terminal detection via KWin; under systemd
+    # it may not propagate, and then pasting falls back to Ctrl+V in konsole).
     from .window import ensure_session_bus
     ensure_session_bus()
     bus = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
@@ -83,7 +83,7 @@ def _check_wayland_tools() -> None:
     else:
         _line(WARN, "bus de sesión D-Bus ausente",
               "sin DBUS_SESSION_BUS_ADDRESS ni $XDG_RUNTIME_DIR/bus — KWin no es alcanzable")
-    # detección de terminal (Ctrl+Shift+V)
+    # terminal detection (Ctrl+Shift+V)
     try:
         from .window import WindowDetector
         backend = WindowDetector().backend
@@ -116,8 +116,8 @@ def _check_ollama() -> None:
         from .config import load_config
         cfg = load_config()
         r = httpx.get(f"{cfg.llm.host}/api/tags", timeout=3)
-        # Ollama expone el nombre del modelo en "name" (o "model" en versiones
-        # recientes de /api/tags); aceptamos ambos para no fallar al detectarlo.
+        # Ollama exposes the model name under "name" (or "model" in recent
+        # versions of /api/tags); we accept both so detection doesn't fail.
         models = [m.get("name") or m.get("model", "") for m in r.json().get("models", [])]
         models = [m for m in models if m]
         _line(OK, "Ollama responde", cfg.llm.host)

@@ -2,13 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Listener push-to-talk vía evdev (lectura directa de /dev/input).
+"""Push-to-talk listener via evdev (direct read from /dev/input).
 
-Detecta KEY_DOWN (value=1 → on_start) y KEY_UP (value=0 → on_stop) de la tecla
-configurada, ignorando el autorepeat (value=2). No hace ``grab()``: la tecla
-sigue llegando a la app enfocada, así que conviene una tecla dedicada poco usada.
+Detects KEY_DOWN (value=1 → on_start) and KEY_UP (value=0 → on_stop) of the
+configured key, ignoring autorepeat (value=2). It does not call ``grab()``: the
+key still reaches the focused app, so a dedicated, rarely-used key is preferable.
 
-Requiere pertenecer al grupo ``input`` para leer /dev/input/event*.
+Requires membership in the ``input`` group to read /dev/input/event*.
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ class EvdevListener:
                 ) from exc
             caps = dev.capabilities()
             keys = caps.get(ecodes.EV_KEY, [])
-            # Monitorizamos los teclados que reporten nuestra tecla (o todos si va por device_path).
+            # Monitor the keyboards that report our key (or all of them if going by device_path).
             if self.device_path or self._key_code in keys:
                 devices.append(dev)
             else:
@@ -94,9 +94,9 @@ class EvdevListener:
                     try:
                         events = list(dev.read())
                     except OSError:
-                        # Dispositivo desaparecido (USB desconectado): hay que
-                        # desregistrar y cerrar, o epoll lo marca listo en bucle
-                        # cerrado → 100% CPU.
+                        # Device gone (USB disconnected): we must unregister and
+                        # close it, otherwise epoll keeps marking it ready in a
+                        # tight loop → 100% CPU.
                         self._drop_device(sel, devices, dev)
                         continue
                     for event in events:
@@ -108,7 +108,7 @@ class EvdevListener:
                         elif event.value == 0 and self._pressed:        # KEY_UP
                             self._pressed = False
                             self._safe(self.on_stop)
-                        # value == 2 (autorepeat) → ignorar
+                        # value == 2 (autorepeat) → ignore
                 if not devices and not self._stop_evt.is_set():
                     devices = self._reconnect(sel)
         finally:
@@ -133,7 +133,7 @@ class EvdevListener:
         log.warning("Teclado desconectado: %s", getattr(dev, "path", "?"))
 
     def _reconnect(self, sel) -> list:  # noqa: ANN001
-        """Reabre dispositivos con backoff tras una desconexión USB."""
+        """Reopen devices with backoff after a USB disconnect."""
         delay = 1.0
         while not self._stop_evt.is_set():
             if self._stop_evt.wait(delay):
@@ -141,7 +141,7 @@ class EvdevListener:
             try:
                 devices = self._open_devices()
             except HotkeyPermissionError:
-                delay = min(delay * 2, 30.0)  # aún no hay teclado: espera más
+                delay = min(delay * 2, 30.0)  # no keyboard yet: wait longer
                 continue
             for d in devices:
                 sel.register(d, selectors.EVENT_READ)
@@ -157,9 +157,9 @@ class EvdevListener:
             log.exception("Error en callback de hotkey")
 
     def start(self) -> None:
-        # Resolver la tecla y abrir los dispositivos de forma SÍNCRONA: así un
-        # error de permisos / tecla inexistente se propaga al llamador (app.py)
-        # que lo notifica, en vez de morir en silencio en el hilo de fondo.
+        # Resolve the key and open the devices SYNCHRONOUSLY: this way a
+        # permission error / nonexistent key propagates to the caller (app.py)
+        # which reports it, instead of dying silently in the background thread.
         self._key_code = self._resolve_key()
         devices = self._open_devices()
         self._stop_evt.clear()

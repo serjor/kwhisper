@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Clasificación dictado vs comando con un LLM local vía Ollama.
+"""Dictation vs command classification with a local LLM via Ollama.
 
-Dada una transcripción, ``gemma3`` decide si el usuario quiere DICTAR texto
-(insertarlo en la ventana) o EJECUTAR un comando en lenguaje natural. Usa salida
-estructurada (JSON schema) con ``temperature=0`` para que sea estable y rápido.
+Given a transcription, ``gemma3`` decides whether the user wants to DICTATE text
+(insert it into the window) or EXECUTE a command in natural language. It uses
+structured output (JSON schema) with ``temperature=0`` so it is stable and fast.
 
-Si Ollama no responde o el JSON es inválido, se hace *fallback a dictado* con la
-transcripción tal cual: nunca se pierde lo que dijiste.
+If Ollama does not respond or the JSON is invalid, it *falls back to dictation*
+with the transcription as-is: you never lose what you said.
 """
 
 from __future__ import annotations
@@ -27,12 +27,12 @@ log = logging.getLogger(__name__)
 
 class Intent(BaseModel):
     tipo: str = "dictado"            # "dictado" | "comando"
-    texto: str = ""                  # texto a insertar (si dictado)
+    texto: str = ""                  # text to insert (if dictation)
     accion: str = "ninguna"          # "abrir_app" | "pulsar_tecla" | "ninguna"
-    argumento: str = ""              # nombre de app, combinación de teclas, etc.
+    argumento: str = ""              # app name, key combination, etc.
 
 
-# JSON schema que Ollama fuerza en la salida (structured outputs).
+# JSON schema that Ollama enforces on the output (structured outputs).
 _FORMAT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -91,7 +91,7 @@ class IntentRouter:
         return msgs
 
     def classify(self, transcription: str) -> Intent:
-        """Clasifica; ante cualquier fallo, devuelve dictado con el texto crudo."""
+        """Classify; on any failure, return dictation with the raw text."""
         fallback = Intent(tipo="dictado", texto=transcription)
         if not transcription.strip():
             return fallback
@@ -109,7 +109,7 @@ class IntentRouter:
         except (httpx.HTTPError, KeyError, ValidationError, json.JSONDecodeError) as exc:
             log.warning("Clasificación LLM falló (%s); fallback a dictado.", exc)
             return fallback
-        # Saneado: si dice dictado pero el texto vino vacío, usa la transcripción.
+        # Sanitization: if it says dictation but the text came back empty, use the transcription.
         if intent.tipo == "dictado" and not intent.texto.strip():
             intent.texto = transcription
         log.info("Intención: tipo=%s accion=%s arg=%r", intent.tipo, intent.accion, intent.argumento)

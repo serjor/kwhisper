@@ -2,14 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Fallback: atajo global vía el portal GlobalShortcuts de KDE (modo TOGGLE).
+"""Fallback: global shortcut via KDE's GlobalShortcuts portal (TOGGLE mode).
 
-No requiere grupo ``input``. No es push-to-talk real: la primera activación
-empieza a grabar y la siguiente para (toggle), porque el evento de soltado del
-portal no es fiable en KWin si se pulsan otras teclas (bug KWin 483183).
+Does not require the ``input`` group. Not real push-to-talk: the first
+activation starts recording and the next one stops it (toggle), because the
+portal's release event is not reliable in KWin if other keys are pressed
+(KWin bug 483183).
 
-El usuario debe asignar la combinación real en
-Preferencias del Sistema → Atajos de teclado → kwhisper, tras el primer arranque.
+The user must assign the actual key combination in
+System Settings → Keyboard Shortcuts → kwhisper, after the first launch.
 """
 
 from __future__ import annotations
@@ -26,9 +27,9 @@ _PATH = "/org/freedesktop/portal/desktop"
 _SHORTCUT_ID = "toggle_dictation"
 
 
-# Introspección estática del objeto Request: permite suscribir el handler de
-# Response ANTES de llamar a CreateSession (sin esperar a que el objeto exista),
-# eliminando la carrera en que la señal llega antes de conectar el handler.
+# Static introspection of the Request object: lets us subscribe the Response
+# handler BEFORE calling CreateSession (without waiting for the object to exist),
+# eliminating the race where the signal arrives before the handler is connected.
 _REQUEST_XML = """<node>
   <interface name="org.freedesktop.portal.Request">
     <method name="Close"/>
@@ -39,9 +40,9 @@ _REQUEST_XML = """<node>
   </interface>
 </node>"""
 
-# Introspección estática de GlobalShortcuts: evita bus.introspect() del objeto
-# portal completo, que en dbus-next revienta al parsear propiedades de otras
-# interfaces con guiones en el nombre (p.ej. 'power-saver-enabled').
+# Static introspection of GlobalShortcuts: avoids bus.introspect() on the full
+# portal object, which in dbus-next blows up when parsing properties of other
+# interfaces with hyphens in their names (e.g. 'power-saver-enabled').
 _GLOBALSHORTCUTS_XML = """<node>
   <interface name="org.freedesktop.portal.GlobalShortcuts">
     <method name="CreateSession">
@@ -82,9 +83,9 @@ class PortalListener:
         self._recording = False
 
     def _toggle(self) -> None:
-        # Solo invertimos nuestro estado si el callback CONFIRMA la transición
-        # (devuelve True). Si la app rechaza arrancar (ocupada/deshabilitada) o
-        # parar, mantenemos el estado para no consumir una pulsación "fantasma".
+        # We only flip our state if the callback CONFIRMS the transition
+        # (returns True). If the app refuses to start (busy/disabled) or to
+        # stop, we keep the state so we don't consume a "phantom" keypress.
         try:
             if self._recording:
                 if self.on_stop():
@@ -116,7 +117,7 @@ class PortalListener:
         token = "kwhisper_create"
         session_token = "kwhisper_session"
 
-        # Predecir el object path del Request y suscribir el handler ANTES de
+        # Predict the Request object path and subscribe the handler BEFORE
         # CreateSession. Path: /org/freedesktop/portal/desktop/request/<SENDER>/<token>
         sender = bus.unique_name[1:].replace(".", "_")
         request_path = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
@@ -133,7 +134,7 @@ class PortalListener:
                 session_handle["value"] = results["session_handle"].value
             done.set()
 
-        req.on_response(on_response)  # conectado antes de iniciar la petición
+        req.on_response(on_response)  # connected before starting the request
 
         await gs.call_create_session({
             "handle_token": Variant("s", token),
@@ -152,8 +153,8 @@ class PortalListener:
             self._fail("El portal no devolvió session_handle; el hotkey no funcionará.")
             return
 
-        # BindShortcuts: registra el atajo (el usuario asigna la tecla en Preferencias).
-        # Nota: dbus-next representa los STRUCT de D-Bus como LISTA, no tupla.
+        # BindShortcuts: registers the shortcut (the user assigns the key in Settings).
+        # Note: dbus-next represents D-Bus STRUCTs as a LIST, not a tuple.
         await gs.call_bind_shortcuts(
             sh,
             [[_SHORTCUT_ID, {"description": Variant("s", "kwhisper: dictar (toggle)")}]],

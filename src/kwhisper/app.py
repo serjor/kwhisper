@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Punto de entrada del daemon kwhisper: une hotkey → audio → STT → LLM → acción.
+"""Entry point of the kwhisper daemon: ties hotkey → audio → STT → LLM → action.
 
-Modelo de hilos:
-* Hilo Qt (principal): bandeja y overlay (toda la UI).
-* Hilo del hotkey (evdev/portal): detecta pulsar/soltar.
-* Hilo worker efímero por frase: STT + clasificación + inyección/comando.
+Threading model:
+* Qt thread (main): tray and overlay (all the UI).
+* Hotkey thread (evdev/portal): detects press/release.
+* Ephemeral per-phrase worker thread: STT + classification + injection/command.
 
-La comunicación hacia la UI va por señales Qt (entrega en cola al hilo Qt).
+Communication toward the UI goes through Qt signals (queued delivery to the Qt thread).
 """
 
 from __future__ import annotations
@@ -35,18 +35,18 @@ class KWhisper:
         self.enabled = True
         self._recording = False
         self._processing = False
-        # Serializa las transiciones de estado entre el hilo del hotkey y el worker.
+        # Serializes state transitions between the hotkey thread and the worker.
         self._lock = threading.Lock()
         self.stt_ready = threading.Event()
 
-        # --- señales UI ---
+        # --- UI signals ---
         class _Ctrl(QObject):
             state = Signal(str)
             overlay = Signal(str, str)
             notify = Signal(str, str)
         self.ctrl = _Ctrl()
 
-        # --- componentes (sin importar Qt aquí) ---
+        # --- components (without importing Qt here) ---
         from .audio import AudioRecorder
         from .commands import CommandExecutor
         from .feedback import Feedback
@@ -62,11 +62,11 @@ class KWhisper:
         self.feedback = Feedback(cfg.ui)
         self._listener = None
         self._quitting = False
-        # Lo crea setup_ui() según cfg.ui.overlay; default aquí para que el
-        # atributo exista siempre (el worker lo consulta antes de inyectar).
+        # Created by setup_ui() based on cfg.ui.overlay; defaulted here so the
+        # attribute always exists (the worker checks it before injecting).
         self.overlay = None
 
-    # ---------- ciclo de vida ----------
+    # ---------- lifecycle ----------
     def setup_ui(self) -> None:
         from .overlay import Overlay
         from .tray import Tray
@@ -92,14 +92,14 @@ class KWhisper:
             self.tray.notify(title, msg)
 
     def _hide_overlay_before_inject(self) -> None:
-        """Oculta el overlay y cede un margen antes de inyectar el texto.
+        """Hide the overlay and yield a margin before injecting the text.
 
-        Bajo KWin Wayland el overlay puede llevarse el foco de teclado pese a sus
-        flags de no-activación; si sigue visible al pegar, el Ctrl+Shift+V acaba
-        en el overlay (que lo ignora) y no se pega nada. Lo ocultamos primero y
-        esperamos un instante a que el compositor devuelva el foco a la ventana
-        destino. El emit se entrega en cola al hilo Qt, así que la breve espera
-        da margen a que la ocultación se procese de verdad antes del pegado.
+        Under KWin Wayland the overlay may grab keyboard focus despite its
+        no-activation flags; if it is still visible when pasting, the Ctrl+Shift+V
+        ends up in the overlay (which ignores it) and nothing is pasted. We hide
+        it first and wait a moment for the compositor to return focus to the
+        target window. The emit is delivered in a queue to the Qt thread, so the
+        brief wait gives the hide time to actually be processed before the paste.
         """
         if self.overlay is None:
             return
@@ -126,7 +126,7 @@ class KWhisper:
                 self.ctrl.notify.emit("kwhisper", "Sin permiso de teclado (grupo input). "
                                                   "Mira los logs o usa backend=portal.")
                 return
-            except ValueError as exc:  # tecla desconocida en config
+            except ValueError as exc:  # unknown key in config
                 log.error("%s", exc)
                 self.ctrl.notify.emit("kwhisper", str(exc))
                 return
@@ -150,10 +150,10 @@ class KWhisper:
                 self.ctrl.notify.emit("kwhisper", f"Error cargando STT: {exc}")
         threading.Thread(target=_load, name="stt-load", daemon=True).start()
 
-    # ---------- callbacks del hotkey (hilo del listener) ----------
-    # Devuelven True solo si la transición ocurrió de verdad. El listener del
-    # portal (modo toggle) usa ese valor para no desincronizar su estado cuando
-    # la grabación se rechaza (ocupado/deshabilitado). El evdev lo ignora.
+    # ---------- hotkey callbacks (listener thread) ----------
+    # Return True only if the transition actually happened. The portal listener
+    # (toggle mode) uses that value to avoid desyncing its state when the
+    # recording is rejected (busy/disabled). The evdev one ignores it.
     def _on_start(self) -> bool:
         with self._lock:
             if not self.enabled or self._recording or self._processing:
@@ -177,8 +177,8 @@ class KWhisper:
             if not self._recording:
                 return False
             self._recording = False
-            # Set TEMPRANO bajo lock: cierra la ventana TOCTOU para que un nuevo
-            # push-to-talk no arranque una segunda grabación mientras procesamos.
+            # Set EARLY under lock: closes the TOCTOU window so a new
+            # push-to-talk does not start a second recording while we process.
             self._processing = True
         audio = self.recorder.stop()
         self.feedback.play("stop")
@@ -188,7 +188,7 @@ class KWhisper:
                          name="kwhisper-process", daemon=True).start()
         return True
 
-    # ---------- pipeline (hilo worker) ----------
+    # ---------- pipeline (worker thread) ----------
     def _process(self, audio) -> None:  # noqa: ANN001
         try:
             dur = self.recorder.duration(audio)
@@ -203,24 +203,24 @@ class KWhisper:
                 self.ctrl.notify.emit("kwhisper", "No se detectó voz.")
                 return
 
-            # Con el LLM activo (router != None) clasificamos SIEMPRE: así el
-            # dictado gana corrección de puntuación/mayúsculas aunque la
-            # ejecución de comandos esté desactivada.
+            # With the LLM active (router != None) we ALWAYS classify: that way
+            # dictation gains punctuation/capitalization correction even if
+            # command execution is disabled.
             if self.router is not None:
                 intent = self.router.classify(text)
             else:
                 from .llm import Intent
                 intent = Intent(tipo="dictado", texto=text)
 
-            # Ejecutar comando solo si están habilitados; si no (o si es
-            # dictado, o un comando con ejecución desactivada) se escribe texto.
+            # Execute the command only if they are enabled; otherwise (or if it
+            # is dictation, or a command with execution disabled) text is written.
             if intent.tipo == "comando" and self.cfg.commands.enabled:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit("Comando", msg)
             else:
-                # Ocultar el overlay ANTES de inyectar para que no se quede con
-                # el foco de teclado bajo KWin Wayland (si no, el Ctrl+Shift+V
-                # iría al overlay y no se pegaría nada en la ventana destino).
+                # Hide the overlay BEFORE injecting so it does not keep the
+                # keyboard focus under KWin Wayland (otherwise the Ctrl+Shift+V
+                # would go to the overlay and nothing would be pasted in the target window).
                 self._hide_overlay_before_inject()
                 self.injector.inject(intent.texto or text)
         except Exception as exc:  # noqa: BLE001
@@ -228,27 +228,27 @@ class KWhisper:
             self.ctrl.overlay.emit("error", "⚠  Error")
             self.ctrl.notify.emit("kwhisper", f"Error: {exc}")
         finally:
-            # Emitir el estado de UI ANTES de soltar el guard: mientras
-            # _processing siga True, _on_start no puede arrancar una grabación
-            # nueva, así que un "recording" posterior se postea siempre después.
+            # Emit the UI state BEFORE releasing the guard: while
+            # _processing stays True, _on_start cannot start a new recording,
+            # so a later "recording" is always posted afterwards.
             self.ctrl.overlay.emit("", "")
             self.ctrl.state.emit("idle" if self.enabled else "disabled")
             with self._lock:
                 self._processing = False
 
-    # ---------- acciones del menú ----------
+    # ---------- menu actions ----------
     def _on_toggle_enabled(self, checked: bool) -> None:
         self.enabled = checked
         self.ctrl.state.emit("idle" if checked else "disabled")
-        # Feedback explícito: sin esto el único indicio es el icono del tray (que
-        # depende del tema) y parece que el checkbox no hace nada.
+        # Explicit feedback: without this the only hint is the tray icon (which
+        # depends on the theme) and it looks like the checkbox does nothing.
         self.ctrl.notify.emit("kwhisper",
                               "Dictado activado" if checked else "Dictado desactivado")
 
     def _on_open_config(self) -> None:
         try:
-            # Guardamos la referencia para no perder el Popen (y que se recolecte
-            # el hijo terminado en el siguiente arranque).
+            # We keep the reference so we don't lose the Popen (and so the
+            # finished child gets reaped on the next launch).
             self._cfg_proc = subprocess.Popen(
                 ["xdg-open", str(CONFIG_PATH)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -257,7 +257,7 @@ class KWhisper:
 
     def _on_quit(self) -> None:
         from PySide6.QtWidgets import QApplication
-        if self._quitting:  # reentrante-seguro: una 2ª señal no repite el cierre
+        if self._quitting:  # reentrant-safe: a 2nd signal does not repeat the shutdown
             return
         self._quitting = True
         if self._listener:
@@ -273,8 +273,8 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     cfg = load_config()
-    # Bajo systemd --user el bus de sesión puede no estar en el entorno: sin él
-    # la detección de terminal (KWin/gdbus) falla y se pega con Ctrl+V en konsole.
+    # Under systemd --user the session bus may not be in the environment: without it
+    # terminal detection (KWin/gdbus) fails and it pastes with Ctrl+V in konsole.
     from .window import ensure_session_bus
     ensure_session_bus()
     if cfg.stt.device == "cuda":
@@ -294,11 +294,11 @@ def main() -> int:
 
     from PySide6.QtCore import QTimer
 
-    # Ctrl+C (SIGINT) y `systemctl --user stop` (SIGTERM) deben parar el daemon
-    # limpiamente. qapp.exec() bloquea el intérprete en C++, así que:
-    #  1) registramos handlers Python que enrutan al cierre limpio (_on_quit), y
-    #  2) un QTimer no-op periódico devuelve el control al intérprete para que la
-    #     señal se atienda y el quit encolado despierte el bucle de eventos.
+    # Ctrl+C (SIGINT) and `systemctl --user stop` (SIGTERM) must stop the daemon
+    # cleanly. qapp.exec() blocks the interpreter in C++, so:
+    #  1) we register Python handlers that route to the clean shutdown (_on_quit), and
+    #  2) a periodic no-op QTimer returns control to the interpreter so the
+    #     signal is handled and the queued quit wakes up the event loop.
     def _signal_shutdown(signum, _frame):  # noqa: ANN001
         log.info("Señal %s recibida; cerrando kwhisper.", signal.Signals(signum).name)
         app._on_quit()
@@ -307,7 +307,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _signal_shutdown)
 
     wake_timer = QTimer()
-    wake_timer.timeout.connect(lambda: None)  # cede el control al intérprete Python
+    wake_timer.timeout.connect(lambda: None)  # yields control to the Python interpreter
     wake_timer.start(200)
 
     log.info("kwhisper en marcha. Backend hotkey=%s, tecla=%s",

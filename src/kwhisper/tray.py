@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Icono de bandeja (StatusNotifierItem) con estado y menú."""
+"""Tray icon (StatusNotifierItem) with state and menu."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from collections.abc import Callable
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-# Iconos del tema según estado (con fallback si el tema no los trae).
+# Theme icons by state (with a fallback if the theme does not provide them).
 _ICONS = {
     "idle": "audio-input-microphone",
     "recording": "media-record",
@@ -44,7 +44,7 @@ class Tray:
         self._enabled_action = QAction("Dictado activado")
         self._enabled_action.setCheckable(True)
         self._enabled_action.setChecked(True)
-        # Etiqueta dinámica (texto, no depende del icono del tema) + callback externo.
+        # Dynamic label (text, does not depend on the theme icon) + external callback.
         self._enabled_action.toggled.connect(self._on_enabled_toggled)
         self._enabled_action.toggled.connect(on_toggle_enabled)
         menu.addAction(self._enabled_action)
@@ -63,15 +63,15 @@ class Tray:
         self._tray.show()
 
     def _on_enabled_toggled(self, checked: bool) -> None:
-        # Texto explícito en el menú: el usuario lee el estado sin depender del icono.
+        # Explicit text in the menu: the user reads the state without relying on the icon.
         self._enabled_action.setText("Dictado activado" if checked else "Dictado desactivado")
 
     def set_state(self, state: str) -> None:
         icon_name = _ICONS.get(state, _ICONS["idle"])
         icon = QIcon.fromTheme(icon_name)
         if icon.isNull():
-            # Fallback VISIBLEMENTE distinto para 'disabled' aunque el tema no
-            # traiga el icono '-muted' (si no, se vería igual que 'idle').
+            # VISIBLY different fallback for 'disabled' even if the theme does
+            # not provide the '-muted' icon (otherwise it would look like 'idle').
             fallback = "dialog-cancel" if state == "disabled" else "audio-input-microphone"
             icon = QIcon.fromTheme(fallback)
         self._tray.setIcon(icon)

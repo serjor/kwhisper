@@ -3,10 +3,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Smoke test del STT: graba unos segundos del micro y transcribe en GPU.
+"""STT smoke test: records a few seconds from the mic and transcribes on the GPU.
 
-Valida de una vez: CUDA/Blackwell + faster-whisper + captura PipeWire.
-Ejecuta dentro del venv:  python scripts/smoke_stt.py [segundos]
+Validates in one go: CUDA/Blackwell + faster-whisper + PipeWire capture.
+Run inside the venv:  python scripts/smoke_stt.py [seconds]
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ def main() -> int:
     from kwhisper.stt import STTEngine, ensure_cuda_lib_path
 
     cfg = load_config()
-    # Igual que el daemon: montar cuBLAS/cuDNN de los wheels en LD_LIBRARY_PATH
-    # (re-exec) ANTES de cargar el modelo; si no, CUDA no encuentra libcublas.
+    # Same as the daemon: mount cuBLAS/cuDNN from the wheels into LD_LIBRARY_PATH
+    # (re-exec) BEFORE loading the model; otherwise CUDA can't find libcublas.
     if cfg.stt.device == "cuda":
         ensure_cuda_lib_path()
 

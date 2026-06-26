@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Ejecutor de comandos de voz (lista blanca de acciones seguras).
+"""Voice command executor (whitelist of safe actions).
 
-Solo ejecuta las acciones que el clasificador puede emitir:
-* ``abrir_app``    → lanza un programa (si está permitido en config).
-* ``pulsar_tecla`` → envía una combinación de teclas con ydotool.
-* ``ninguna``      → no hace nada.
+Only executes the actions the classifier can emit:
+* ``abrir_app``    → launches a program (if allowed in config).
+* ``pulsar_tecla`` → sends a key combination with ydotool.
+* ``ninguna``      → does nothing.
 
-Por diseño NO ejecuta órdenes de shell arbitrarias dictadas por voz.
+By design it does NOT execute arbitrary shell commands dictated by voice.
 """
 
 from __future__ import annotations
@@ -44,15 +44,15 @@ class CommandExecutor:
         self._procs: list[subprocess.Popen] = []
 
     def _spawn(self, args: list[str]) -> None:
-        # Lanza desacoplado y conserva la referencia, podando los ya terminados
-        # (evita zombies sin perder el Popen).
+        # Launches detached and keeps the reference, pruning the already finished
+        # ones (avoids zombies without losing the Popen).
         self._procs = [p for p in self._procs if p.poll() is None]
         self._procs.append(subprocess.Popen(
             args, start_new_session=True,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 
     def execute(self, intent: Intent) -> str:
-        """Ejecuta la acción del intent. Devuelve un mensaje legible del resultado."""
+        """Execute the intent's action. Returns a human-readable result message."""
         if intent.accion == "abrir_app":
             return self._open_app(intent.argumento)
         if intent.accion == "pulsar_tecla":
@@ -65,14 +65,14 @@ class CommandExecutor:
             return "Comando 'abrir' sin aplicación."
         if not self.cfg.allow_launch:
             return "Lanzar aplicaciones está desactivado en la config."
-        # Solo el primer token: lanzamos el binario SIN argumentos extra que
-        # pudiera colar la transcripción (p.ej. flags peligrosas a un binario).
+        # Only the first token: we launch the binary WITHOUT extra arguments that
+        # the transcription could sneak in (e.g. dangerous flags to a binary).
         binary = name.split()[0]
         try:
             if shutil.which(binary):
                 self._spawn([binary])
                 return f"Abriendo {binary}"
-            # Fallback: lanzador por .desktop (KDE/GTK).
+            # Fallback: launcher via .desktop (KDE/GTK).
             if shutil.which("kstart"):
                 self._spawn(["kstart", binary])
                 return f"Abriendo {binary} (kstart)"

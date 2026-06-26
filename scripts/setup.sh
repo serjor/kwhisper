@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Instalador de kwhisper para CachyOS / Arch + KDE Plasma 6 (Wayland).
-# Idempotente: puedes ejecutarlo varias veces. Pide confirmación antes de
-# cambios del sistema (sudo). Ejecuta:  bash scripts/setup.sh
+# kwhisper installer for CachyOS / Arch + KDE Plasma 6 (Wayland).
+# Idempotent: you can run it multiple times. Asks for confirmation before
+# system changes (sudo). Run:  bash scripts/setup.sh
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,9 +13,9 @@ ok()   { printf '\033[32m  ✔ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m  ‼ %s\033[0m\n' "$*"; }
 ask()  { read -rp "  $1 [s/N] " r; [[ "$r" =~ ^[sSyY]$ ]]; }
 
-# 1) Paquetes del sistema (repos oficiales) -----------------------------------
+# 1) System packages (official repos) -----------------------------------------
 say "Paquetes del sistema (pacman)"
-# gcc + linux-api-headers: necesarios para compilar el módulo evdev (solo sdist en PyPI).
+# gcc + linux-api-headers: needed to compile the evdev module (sdist only on PyPI).
 PKGS=(pyside6 ydotool wl-clipboard libnotify libcanberra ffmpeg python-evdev gcc linux-api-headers)
 MISSING=()
 for p in "${PKGS[@]}"; do pacman -Qq "$p" &>/dev/null || MISSING+=("$p"); done
@@ -30,7 +30,7 @@ else
   ok "Todos los paquetes presentes."
 fi
 
-# 2) kdotool: OPCIONAL. Hay fallback nativo por D-Bus de KWin, no hace falta AUR.
+# 2) kdotool: OPTIONAL. There's a native KWin D-Bus fallback, no AUR needed.
 say "kdotool (OPCIONAL — hay detección de terminal nativa por KWin/D-Bus)"
 if command -v kdotool &>/dev/null; then
   ok "kdotool instalado (se usará como backend preferente)."
@@ -38,7 +38,7 @@ else
   ok "kdotool no instalado: kwhisper detectará terminales vía KWin D-Bus (sin AUR)."
 fi
 
-# 3) Entorno Python (uv + venv con site-packages del sistema para PySide6) -----
+# 3) Python environment (uv + venv with system site-packages for PySide6) ------
 say "Entorno Python (uv)"
 command -v uv &>/dev/null || { echo "uv no está instalado: sudo pacman -S uv"; exit 1; }
 if [[ ! -d "$VENV" ]]; then
@@ -51,7 +51,7 @@ say "Instalando kwhisper y dependencias (esto descarga las libs CUDA, puede tard
 VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR"
 ok "kwhisper instalado en el venv."
 
-# 4) Grupo input (push-to-talk evdev) -----------------------------------------
+# 4) input group (evdev push-to-talk) -----------------------------------------
 say "Permiso de teclado para push-to-talk (grupo input)"
 if id -nG "$USER" | tr ' ' '\n' | grep -qx input; then
   ok "Ya estás en el grupo input."
@@ -65,24 +65,24 @@ else
   fi
 fi
 
-# 5) Servicio de usuario ydotoold ---------------------------------------------
+# 5) ydotoold user service ----------------------------------------------------
 say "Servicio ydotoold (inyección de texto)"
 systemctl --user enable --now ydotool.service 2>/dev/null || warn "No pude activar ydotool.service (revisa: systemctl --user status ydotool)"
 ok "ydotool.service activado (si no dio error)."
 
-# 6) Servicio de usuario kwhisper ---------------------------------------------
+# 6) kwhisper user service ----------------------------------------------------
 say "Servicio systemd de usuario kwhisper"
 UNIT_DIR="$HOME/.config/systemd/user"
 mkdir -p "$UNIT_DIR"
 sed "s#@KWHISPER_BIN@#$VENV/bin/kwhisper#g" "$PROJECT_DIR/packaging/kwhisper.service.in" > "$UNIT_DIR/kwhisper.service"
 systemctl --user daemon-reload
-# Importa el entorno gráfico al systemd de usuario por si Plasma no lo hace solo
-# (si no, la unidad podría quedar "condition failed" en silencio).
+# Import the graphical environment into the user's systemd in case Plasma
+# doesn't do it on its own (otherwise the unit could silently end up "condition failed").
 systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR DISPLAY 2>/dev/null || true
 ok "Unidad instalada en $UNIT_DIR/kwhisper.service"
 echo "  Actívala cuando quieras:  systemctl --user enable --now kwhisper"
 
-# 7) Modelo de Ollama ----------------------------------------------------------
+# 7) Ollama model --------------------------------------------------------------
 say "Modelo de clasificación (Ollama)"
 if command -v ollama &>/dev/null && ollama list 2>/dev/null | grep -q '^gemma3'; then
   ok "gemma3 disponible en Ollama."

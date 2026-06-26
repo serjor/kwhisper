@@ -2,10 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Captura de audio del micrófono vía sounddevice (PortAudio → PipeWire).
+"""Microphone audio capture via sounddevice (PortAudio → PipeWire).
 
-Graba a un buffer en memoria mientras el push-to-talk esté activo y, al parar,
-devuelve un ``np.ndarray`` float32 mono a 16 kHz, que es lo que espera Whisper.
+Records to an in-memory buffer while push-to-talk is active and, on stop,
+returns an ``np.ndarray`` float32 mono at 16 kHz, which is what Whisper expects.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ log = logging.getLogger(__name__)
 
 
 class AudioRecorder:
-    """Grabador push-to-talk: ``start()`` abre el stream, ``stop()`` lo cierra
-    y devuelve el audio acumulado."""
+    """Push-to-talk recorder: ``start()`` opens the stream, ``stop()`` closes it
+    and returns the accumulated audio."""
 
     def __init__(self, samplerate: int = 16000, channels: int = 1, device: str = ""):
         self.samplerate = samplerate
@@ -36,7 +36,7 @@ class AudioRecorder:
     def _resolve_device(device: str):
         if not device:
             return None
-        # Permite índice numérico ("3") o subcadena del nombre ("UGREEN").
+        # Allows a numeric index ("3") or a substring of the name ("UGREEN").
         try:
             return int(device)
         except ValueError:
@@ -65,13 +65,13 @@ class AudioRecorder:
             dtype="int16",
             device=self.device,
             callback=self._callback,
-            blocksize=0,  # que PortAudio elija el tamaño óptimo
+            blocksize=0,  # let PortAudio choose the optimal size
         )
         self._stream.start()
         log.debug("Grabación iniciada (%d Hz, %d canal/es)", self.samplerate, self.channels)
 
     def stop(self) -> np.ndarray:
-        """Cierra el stream y devuelve el audio como float32 mono normalizado."""
+        """Close the stream and return the audio as normalized float32 mono."""
         if not self._recording:
             return np.zeros(0, dtype=np.float32)
         with self._lock:
@@ -88,9 +88,9 @@ class AudioRecorder:
         if not frames:
             return np.zeros(0, dtype=np.float32)
         audio = np.concatenate(frames, axis=0)
-        if audio.ndim > 1:  # a mono si llegara estéreo
+        if audio.ndim > 1:  # to mono if it comes in stereo
             audio = audio.mean(axis=1)
-        # int16 → float32 en [-1, 1], que es el formato que consume faster-whisper.
+        # int16 → float32 in [-1, 1], which is the format faster-whisper consumes.
         return (audio.astype(np.float32) / 32768.0).flatten()
 
     def duration(self, audio: np.ndarray) -> float:

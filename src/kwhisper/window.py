@@ -2,17 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Detección de la clase de la ventana enfocada bajo KWin/Wayland.
+"""Detection of the focused window's class under KWin/Wayland.
 
-Se usa para decidir si pegar con Ctrl+V (apps normales) o Ctrl+Shift+V
-(terminales). Dos backends, en orden de preferencia:
+Used to decide whether to paste with Ctrl+V (normal apps) or Ctrl+Shift+V
+(terminals). Two backends, in order of preference:
 
-1. ``kdotool`` si está instalado (AUR) — la vía más directa.
-2. KWin vía D-Bus (sin AUR): carga un script de KWin que imprime la
-   ``resourceClass`` de ``workspace.activeWindow`` y se lee del journal. Usa solo
-   herramientas de KDE (``gdbus`` + ``journalctl``), ya presentes en Plasma.
+1. ``kdotool`` if installed (AUR) — the most direct route.
+2. KWin via D-Bus (no AUR): loads a KWin script that prints the
+   ``resourceClass`` of ``workspace.activeWindow`` and reads it from the journal.
+   Uses only KDE tools (``gdbus`` + ``journalctl``), already present in Plasma.
 
-Si ninguno funciona, devuelve "" (clase desconocida → se usa el atajo por defecto).
+If neither works, returns "" (unknown class → the default shortcut is used).
 """
 
 from __future__ import annotations
@@ -35,15 +35,15 @@ _MARKER = "KWHISPER_AW:"
 
 
 def ensure_session_bus() -> None:
-    """Garantiza ``DBUS_SESSION_BUS_ADDRESS`` para que ``gdbus --session`` alcance
-    a KWin cuando kwhisper arranca como servicio de usuario.
+    """Ensures ``DBUS_SESSION_BUS_ADDRESS`` so that ``gdbus --session`` can reach
+    KWin when kwhisper starts as a user service.
 
-    systemd ``--user`` no siempre propaga esta variable al entorno de la unidad
-    (la lista de ``import-environment`` es limitada), y sin ella la detección de
-    terminal falla en silencio: se acaba pegando con ``Ctrl+V`` en konsole, que
-    no pega. El bus de sesión del usuario vive de forma fiable en
-    ``$XDG_RUNTIME_DIR/bus``; lo fijamos si falta. Idempotente y barato: igual que
-    ``inject._ydotool_env`` deriva ``YDOTOOL_SOCKET`` de ``XDG_RUNTIME_DIR``.
+    systemd ``--user`` does not always propagate this variable to the unit's
+    environment (the ``import-environment`` list is limited), and without it the
+    terminal detection fails silently: it ends up pasting with ``Ctrl+V`` in
+    konsole, which does not paste. The user's session bus reliably lives at
+    ``$XDG_RUNTIME_DIR/bus``; we set it if missing. Idempotent and cheap: just like
+    ``inject._ydotool_env`` derives ``YDOTOOL_SOCKET`` from ``XDG_RUNTIME_DIR``.
     """
     if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
         return
@@ -58,9 +58,9 @@ def ensure_session_bus() -> None:
 
 
 def _build_script(nonce: str) -> str:
-    # El nonce hace inequívoco el marcador en el journal (que solo tiene
-    # resolución de 1 s): así no se lee el resultado de una consulta anterior
-    # ocurrida dentro del mismo segundo.
+    # The nonce makes the marker unambiguous in the journal (which only has
+    # 1 s resolution): this way we don't read the result of a previous query
+    # that happened within the same second.
     return (
         "var w = workspace.activeWindow;\n"
         'print("' + _MARKER + nonce + ':" + (w ? w.resourceClass : "none"));\n'
@@ -69,8 +69,8 @@ def _build_script(nonce: str) -> str:
 
 class WindowDetector:
     def __init__(self):
-        # El bus de sesión debe estar disponible antes de la primera consulta a
-        # KWin; bajo systemd puede no haberse propagado al entorno de la unidad.
+        # The session bus must be available before the first query to KWin;
+        # under systemd it may not have been propagated to the unit's environment.
         ensure_session_bus()
         self._kdotool = shutil.which("kdotool")
         self._gdbus = shutil.which("gdbus")
@@ -87,7 +87,7 @@ class WindowDetector:
         return "ninguno"
 
     def active_class(self) -> str:
-        """Clase (resourceClass) de la ventana enfocada, en minúsculas, o ""."""
+        """Class (resourceClass) of the focused window, lowercased, or ""."""
         if self._kdotool:
             cls = self._via_kdotool()
             if cls is not None:
@@ -98,7 +98,7 @@ class WindowDetector:
                 return cls
         return ""
 
-    # --- backend kdotool ---
+    # --- kdotool backend ---
     def _via_kdotool(self) -> str | None:
         try:
             wid = subprocess.run(["kdotool", "getactivewindow"],
@@ -112,21 +112,21 @@ class WindowDetector:
             log.debug("kdotool falló: %s", exc)
             return None
 
-    # --- backend KWin D-Bus (sin AUR) ---
-    # Nota: KWin no re-ejecuta un script ya cargado al llamar run() otra vez, así
-    # que recargamos (unload + load + run) en CADA consulta. Es barato (~60-120ms).
+    # --- KWin D-Bus backend (no AUR) ---
+    # Note: KWin does not re-run an already-loaded script when calling run() again,
+    # so we reload (unload + load + run) on EVERY query. It's cheap (~60-120ms).
     def _load_script(self, script_text: str) -> int | None:
-        # El script se escribe SOLO en XDG_RUNTIME_DIR (directorio privado del
-        # usuario, 0700). No caemos a /tmp: un fichero de nombre predecible ahí
-        # podría ser pre-creado/symlinkeado por otro usuario y KWin acabaría
-        # ejecutando JS ajeno en tu sesión.
+        # The script is written ONLY to XDG_RUNTIME_DIR (the user's private
+        # directory, 0700). We don't fall back to /tmp: a predictably-named file
+        # there could be pre-created/symlinked by another user and KWin would end
+        # up running someone else's JS in your session.
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if not runtime_dir:
             log.debug("XDG_RUNTIME_DIR no definido; no se carga el script de KWin.")
             return None
         try:
             path = os.path.join(runtime_dir, "kwhisper-activewindow.js")
-            # O_NOFOLLOW + 0600: no seguir symlinks y solo el usuario lee/escribe.
+            # O_NOFOLLOW + 0600: don't follow symlinks and only the user can read/write.
             flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
             with os.fdopen(os.open(path, flags, 0o600), "w", encoding="utf-8") as fh:
                 fh.write(script_text)
@@ -163,7 +163,7 @@ class WindowDetector:
             log.debug("run() del script KWin falló: %s", exc)
             self._note_fail()
             return None
-        # El print llega al journal con un pequeño retardo: sondear brevemente.
+        # The print reaches the journal with a small delay: poll briefly.
         for _ in range(8):
             time.sleep(0.05)
             cls = self._read_journal(since, nonce)

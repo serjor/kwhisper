@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test de aceptación de acentos: cuenta atrás, enfoca un editor de texto y mira
-# si aparece exactamente la cadena. Valida portapapeles + Ctrl+V vía ydotool.
+# Accent acceptance test: counts down, focus a text editor and check whether
+# the exact string appears. Validates clipboard + Ctrl+V via ydotool.
 #   bash scripts/test_inject.sh
 set -euo pipefail
 export YDOTOOL_SOCKET="${YDOTOOL_SOCKET:-/run/user/$(id -u)/.ydotool_socket}"

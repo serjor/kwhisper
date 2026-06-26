@@ -2,10 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Overlay flotante de estado (grabando / procesando) que NO roba el foco.
+"""Floating status overlay (recording / processing) that does NOT steal focus.
 
-Crucial: usa ``WA_ShowWithoutActivating`` + ventana tipo Tool sin foco, para no
-robar el foco de la ventana destino (donde se va a inyectar el texto).
+Crucial: uses ``WA_ShowWithoutActivating`` + a focusless Tool-type window, so as
+not to steal focus from the target window (where the text will be injected).
 """
 
 from __future__ import annotations
