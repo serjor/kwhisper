@@ -141,19 +141,31 @@ def _check_tts() -> None:
     if not cfg.enabled:
         _line(WARN, t("doctor.tts_disabled"))
     model_dir = cfg.model_dir or str(default_model_dir())
-    for f in ("kokoro-v1.0.onnx", "voices-v1.0.bin"):
-        if os.path.exists(os.path.join(model_dir, f)):
-            _line(OK, t("doctor.tts_model_present", model=f))
-        else:
-            _line(WARN, t("doctor.tts_model_absent", model=f),
-                  t("doctor.tts_model_absent_detail", dir=model_dir))
-    try:
-        import kokoro_onnx  # noqa: F401
-        _line(OK, t("doctor.tts_kokoro_ok"))
-    except Exception as exc:  # noqa: BLE001
-        _line(WARN, t("doctor.tts_kokoro_fail"), str(exc))
-    # Only import torch (heavy, loads CUDA) if Chatterbox is the chosen answer engine.
-    if cfg.answer_engine == "chatterbox":
+
+    def _check_models(files: tuple[str, ...]) -> None:
+        for f in files:
+            if os.path.exists(os.path.join(model_dir, f)):
+                _line(OK, t("doctor.tts_model_present", model=f))
+            else:
+                _line(WARN, t("doctor.tts_model_absent", model=f),
+                      t("doctor.tts_model_absent_detail", dir=model_dir))
+
+    if cfg.engine == "piper":
+        _check_models((cfg.voice + ".onnx", cfg.voice + ".onnx.json"))
+        try:
+            import piper  # noqa: F401
+            _line(OK, t("doctor.tts_piper_ok"))
+        except Exception as exc:  # noqa: BLE001
+            _line(WARN, t("doctor.tts_piper_fail"), str(exc))
+    elif cfg.engine == "kokoro":
+        _check_models(("kokoro-v1.0.onnx", "voices-v1.0.bin"))
+        try:
+            import kokoro_onnx  # noqa: F401
+            _line(OK, t("doctor.tts_kokoro_ok"))
+        except Exception as exc:  # noqa: BLE001
+            _line(WARN, t("doctor.tts_kokoro_fail"), str(exc))
+    elif cfg.engine == "chatterbox":
+        # Only import torch (heavy, loads CUDA) when Chatterbox is the chosen engine.
         try:
             import torch
             if torch.cuda.is_available():

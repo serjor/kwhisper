@@ -4,10 +4,10 @@
 
 """Out-of-process TTS worker. Run as ``python -m kwhisper.tts_worker``.
 
-Kokoro (CPU, torch-free) is the always-available engine for feedback and as the
-answer fallback; Chatterbox (torch cu128, GPU) is optional for answers and, if it
-fails to load on Blackwell, this worker degrades to Kokoro permanently for the
-rest of the session.
+Engines (selected by config ``engine``): Piper (onnxruntime, torch-free, natural
+es-ES voices), Kokoro (onnxruntime, torch-free, multilingual but Latin-American
+Spanish), and Chatterbox (torch cu128, GPU, opt-in). Chatterbox degrades to Kokoro
+permanently if it fails to load on Blackwell.
 
 Protocol (one JSON object per line):
 * stdin  ← {"cmd": "config", model_dir, voice, speed, lang, device}
@@ -50,6 +50,30 @@ class _Kokoro:
                               speed=self.cfg["speed"], lang=self.cfg["lang"])
 
 
+class _Piper:
+    """Lazy Piper (onnxruntime, no torch). Natural es-ES voices; sr is per-model.
+
+    ``voice`` is the voice-model basename: it loads ``<model_dir>/<voice>.onnx``
+    (with the adjacent ``.onnx.json``).
+    """
+
+    def __init__(self, cfg: dict):
+        self._v = None
+        self.cfg = cfg
+
+    def synth(self, text: str):
+        if self._v is None:
+            import os
+            from piper import PiperVoice
+            d = self.cfg["model_dir"]
+            kw = {"use_cuda": True} if self.cfg.get("device") == "cuda" else {}
+            self._v = PiperVoice.load(os.path.join(d, self.cfg["voice"] + ".onnx"), **kw)
+        import numpy as np
+        chunks = list(self._v.synthesize(text))
+        audio = np.concatenate([c.audio_float_array for c in chunks])
+        return audio, chunks[0].sample_rate
+
+
 class _Chatterbox:
     """Lazy Chatterbox Multilingual (torch cu128, GPU, m.sr=24000)."""
 
@@ -79,11 +103,21 @@ def main() -> int:
         out.flush()
 
     cfg: dict | None = None
-    kok = ch = None
+    engines: dict = {}              # lazy cache: engine name -> instance
     cb_dead = False                 # Chatterbox failed once → stop retrying
     cancel = threading.Event()
     play_lock = threading.Lock()  # serializes the cancel-check -> play vs cancel's stop
     cmds: queue.Queue = queue.Queue()
+
+    def engine_for(name: str):
+        if name not in engines:
+            if name == "piper":
+                engines[name] = _Piper(cfg)
+            elif name == "chatterbox":
+                engines[name] = _Chatterbox(cfg)
+            else:
+                engines[name] = _Kokoro(cfg)
+        return engines[name]
 
     def _reader() -> None:
         # Cancel must act immediately (even mid-playback), so it is handled here
@@ -116,30 +150,29 @@ def main() -> int:
             return 0
         if c == "config":
             cfg = m
-            kok = _Kokoro(cfg)
-            ch = _Chatterbox(cfg)
+            engines.clear()  # rebuild lazily with the new config (e.g. a voice change)
             continue
         if c != "speak" or cfg is None:
             continue
         # Clear at the START of each utterance (not in a finally): a stale cancel
         # left over from the previous utterance must not suppress this one.
         cancel.clear()
-        engine = m.get("engine", "kokoro")
+        engine = m.get("engine") or cfg.get("engine", "kokoro")
         text = m.get("text", "")
         fallback = False
         detail = ""
         try:
             if engine == "chatterbox" and not cb_dead:
                 try:
-                    samples, sr = ch.synth(text)
+                    samples, sr = engine_for("chatterbox").synth(text)
                 except Exception as exc:  # noqa: BLE001  torch/Blackwell/load failure
                     cb_dead = True
                     fallback = True
                     detail = repr(exc)
                     sys.stderr.write(f"chatterbox->kokoro fallback: {exc!r}\n")
-                    samples, sr = kok.synth(text)
+                    samples, sr = engine_for("kokoro").synth(text)
             else:
-                samples, sr = kok.synth(text)
+                samples, sr = engine_for(engine).synth(text)
             # Decide-to-play and start the stream atomically against a concurrent
             # cancel's stop, so a barge-in in the gap between the check and sd.play()
             # can't be missed. sd.wait() stays OUTSIDE the lock so cancel can stop it.

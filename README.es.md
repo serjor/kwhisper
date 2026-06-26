@@ -15,7 +15,8 @@ nada sale a internet.
 - **Inyección**: portapapeles + `Ctrl+V` (acentos del español 100% fiables en KWin).
 - **UI**: icono de bandeja + overlay flotante + sonidos.
 - **Voz (TTS, opcional)**: lee confirmaciones y responde preguntas en voz alta
-  (Kokoro/Chatterbox) desde un subproceso aislado. Desactivado por defecto.
+  (Piper en castellano de España, o Kokoro/Chatterbox) desde un subproceso aislado.
+  Desactivado por defecto.
 
 > Diseñado y verificado para: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
 > (Blackwell `sm_120`) · PipeWire. Debería valer en cualquier Arch+KDE con GPU NVIDIA.
@@ -159,9 +160,10 @@ nunca el dictado.
   TTS instalado (`scripts/setup.sh` lo ofrece).
 - `[tts] speak_feedback` / `speak_answers` — leer confirmaciones de comando / leer
   las respuestas del modo pregunta.
-- `[tts] answer_engine` — `"kokoro"` (CPU, recomendado) o `"chatterbox"` (torch
-  cu128, más natural, opt-in; cae a Kokoro si falla).
-- `[tts] voice` — voz de Kokoro: `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] engine` — `"piper"` (castellano es-ES, natural, recomendado) · `"kokoro"`
+  (multilingüe, pero español latino) · `"chatterbox"` (torch cu128, opt-in; requiere Python <3.14).
+- `[tts] voice` — según el motor: Piper `es_ES-davefx-medium` / `es_ES-sharvard-medium`;
+  Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
 - `[tts] activation_phrases` — frases que abren el modo pregunta (la transcripción
   debe **empezar** por una). Mantenlas distintivas y de varias palabras.
 

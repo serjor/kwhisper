@@ -296,21 +296,23 @@ class KWhisper:
                         tts_enabled: bool | None = None,
                         tts_feedback: bool | None = None,
                         tts_answers: bool | None = None,
+                        tts_engine: str | None = None,
                         tts_voice: str | None = None) -> None:
         """Persist the settings, then live-apply them (no daemon restart needed).
 
         The IntentRouter and TTSPlayer share this very ``cfg.llm``/``cfg.tts``
         object, so reassigning fields takes effect on the next use without
         rebuilding anything. A language change is re-rendered into the tray menu;
-        a voice change respawns the TTS worker so the new voice is picked up.
+        an engine/voice change respawns the TTS worker so it is picked up.
         """
         from .config import save_settings
         save_settings(ui_lang=ui_lang, llm_model=llm_model,
                       llm_system_prompt=llm_system_prompt,
                       tts_enabled=tts_enabled, tts_feedback=tts_feedback,
-                      tts_answers=tts_answers, tts_voice=tts_voice)
+                      tts_answers=tts_answers, tts_engine=tts_engine, tts_voice=tts_voice)
         lang_changed = ui_lang != self.cfg.ui.lang
-        voice_changed = tts_voice is not None and tts_voice != self.cfg.tts.voice
+        tts_reload = ((tts_engine is not None and tts_engine != self.cfg.tts.engine)
+                      or (tts_voice is not None and tts_voice != self.cfg.tts.voice))
         self.cfg.ui.lang = ui_lang
         self.cfg.llm.model = llm_model
         self.cfg.llm.system_prompt = llm_system_prompt
@@ -320,10 +322,12 @@ class KWhisper:
             self.cfg.tts.speak_feedback = tts_feedback
         if tts_answers is not None:
             self.cfg.tts.speak_answers = tts_answers
+        if tts_engine is not None:
+            self.cfg.tts.engine = tts_engine
         if tts_voice is not None:
             self.cfg.tts.voice = tts_voice
-        if voice_changed:
-            self.tts.reload()  # next utterance respawns the worker with the new voice
+        if tts_reload:
+            self.tts.reload()  # next utterance respawns the worker with the new engine/voice
         if lang_changed:
             set_language(ui_lang)
             self.tray.retranslate()

@@ -15,7 +15,8 @@ machine: nothing leaves the internet.
 - **Injection**: clipboard + `Ctrl+V` (Spanish accents 100% reliable in KWin).
 - **UI**: tray icon + floating overlay + sounds.
 - **Voice (TTS, optional)**: reads confirmations and answers questions aloud
-  (Kokoro/Chatterbox) from an isolated subprocess. Off by default.
+  (Piper in Castilian Spanish, or Kokoro/Chatterbox) from an isolated subprocess.
+  Off by default.
 
 > Designed and verified for: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
 > (Blackwell `sm_120`) · PipeWire. Should work on any Arch+KDE with an NVIDIA GPU.
@@ -158,9 +159,10 @@ editing: `systemctl --user restart kwhisper`. Useful keys:
   installed (`scripts/setup.sh` offers it).
 - `[tts] speak_feedback` / `speak_answers` — read command confirmations / read the
   question-mode answers.
-- `[tts] answer_engine` — `"kokoro"` (CPU, recommended) or `"chatterbox"` (torch
-  cu128, more natural, opt-in; falls back to Kokoro if it fails).
-- `[tts] voice` — Kokoro voice: `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] engine` — `"piper"` (Castilian es-ES, natural, recommended) · `"kokoro"`
+  (multilingual, but Latin-American Spanish) · `"chatterbox"` (torch cu128, opt-in; needs Python <3.14).
+- `[tts] voice` — per engine: Piper `es_ES-davefx-medium` / `es_ES-sharvard-medium`;
+  Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
 - `[tts] activation_phrases` — phrases that open question mode (the transcription
   must **start** with one). Keep them distinctive and multi-word.
 

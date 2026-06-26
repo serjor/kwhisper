@@ -37,10 +37,11 @@ dev = [
     "build",
     "twine",
 ]
-# Voz (TTS) — OPCIONAL. Kokoro (onnxruntime, sin torch) cubre el feedback hablado
-# y las respuestas por defecto; corre en CPU y convive limpio con faster-whisper.
-# Los motores se ejecutan en un subproceso aislado (kwhisper.tts_worker).
+# Voz (TTS) — OPCIONAL. Piper (es-ES castellano, natural) y Kokoro (multilingüe);
+# ambos vía onnxruntime, SIN torch, conviven limpio con faster-whisper. Corren en un
+# subproceso aislado (kwhisper.tts_worker). Piper es el motor por defecto.
 tts = [
+    "piper-tts",
     "kokoro-onnx",
 ]
 # Motor neuronal opcional SOLO para respuestas. Pesado: arrastra torch. En Blackwell

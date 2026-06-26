@@ -96,12 +96,25 @@ class SettingsDialog(QDialog):
         self._tts_answers = QCheckBox()
         self._tts_answers.setChecked(tts_cfg.speak_answers)
         tts_form.addRow(t("settings.tts_answers"), self._tts_answers)
+        # Voice presets: each maps to an (engine, voice) pair, so the user picks a
+        # voice without separately reasoning about engines.
         self._tts_voice = QComboBox()
-        self._tts_voice.addItems(["ef_dora", "em_alex", "em_santa"])
-        # Keep a custom/unknown voice from the TOML selectable instead of dropping it.
-        if self._tts_voice.findText(tts_cfg.voice) < 0:
-            self._tts_voice.insertItem(0, tts_cfg.voice)
-        self._tts_voice.setCurrentText(tts_cfg.voice)
+        for label, eng, voc in (
+            ("Piper · es-ES davefx (castellano)", "piper", "es_ES-davefx-medium"),
+            ("Piper · es-ES sharvard (castellano)", "piper", "es_ES-sharvard-medium"),
+            ("Kokoro · ef_dora (latam, f)", "kokoro", "ef_dora"),
+            ("Kokoro · em_alex (latam, m)", "kokoro", "em_alex"),
+            ("Kokoro · em_santa (latam, m)", "kokoro", "em_santa"),
+        ):
+            self._tts_voice.addItem(label, (eng, voc))
+        # Select the configured (engine, voice); keep a custom one if not listed.
+        target = (tts_cfg.engine, tts_cfg.voice)
+        idx = next((i for i in range(self._tts_voice.count())
+                    if self._tts_voice.itemData(i) == target), -1)
+        if idx < 0:
+            self._tts_voice.addItem(f"{tts_cfg.engine} · {tts_cfg.voice}", target)
+            idx = self._tts_voice.count() - 1
+        self._tts_voice.setCurrentIndex(idx)
         tts_form.addRow(t("settings.tts_voice"), self._tts_voice)
         root.addWidget(tts_box)
 
@@ -176,5 +189,6 @@ class SettingsDialog(QDialog):
             "tts_enabled": self._tts_enabled.isChecked(),
             "tts_feedback": self._tts_feedback.isChecked(),
             "tts_answers": self._tts_answers.isChecked(),
-            "tts_voice": self._tts_voice.currentText().strip() or self._tts_voice.itemText(0),
+            "tts_engine": self._tts_voice.currentData()[0],
+            "tts_voice": self._tts_voice.currentData()[1],
         }

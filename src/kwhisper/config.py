@@ -99,10 +99,14 @@ class TTSConfig(BaseModel):
     enabled: bool = False
     speak_feedback: bool = True     # A: read command confirmations / errors aloud (Kokoro)
     speak_answers: bool = True      # B: read the LLM's answer aloud (question mode)
-    # Kokoro = torch-free, CPU, always works. Chatterbox = opt-in, heavier (torch cu128),
-    # used only for answers; it auto-falls-back to Kokoro inside the worker if it can't load.
-    answer_engine: Literal["kokoro", "chatterbox"] = "kokoro"
-    voice: str = "ef_dora"          # Kokoro es voices: ef_dora (f) | em_alex (m) | em_santa (m)
+    # Engine for spoken feedback AND answers. Piper has natural es-ES (Spain) voices
+    # and installs torch-free (onnxruntime). Kokoro is multilingual but its Spanish is
+    # Latin-American. Chatterbox is the most natural but pulls torch (opt-in; won't
+    # install on Python >=3.14 — use a separate 3.12 venv via KWHISPER_TTS_PYTHON).
+    engine: Literal["kokoro", "piper", "chatterbox"] = "piper"
+    # Interpreted per engine: Piper = voice-model filename ("es_ES-davefx-medium");
+    # Kokoro = built-in voice id ("ef_dora"); Chatterbox = ignored (uses lang).
+    voice: str = "es_ES-davefx-medium"
     speed: float = 1.0
     lang: str = "es"
     # Kokoro device: "cpu" keeps the new code path CUDA-free (Whisper provably untouched).
@@ -196,14 +200,22 @@ allow_close = true         # allow "cierra <app>" (sends SIGTERM by process name
 
 [tts]
 # Voice output (TTS). Disabled by default: needs the TTS extra installed
-# (scripts/setup.sh offers it). Feedback and answers use Kokoro (torch-free, on
-# CPU); Chatterbox (torch cu128, heavy) is optional and only for answers. The
-# neural engines run in an isolated subprocess so they can't destabilize Whisper.
+# (scripts/setup.sh offers it). Piper has natural Castilian Spanish (es-ES) voices
+# and is torch-free; the neural engines run in an isolated subprocess so they can't
+# destabilize Whisper.
 enabled = false
 speak_feedback = true       # read command confirmations and errors aloud
 speak_answers = true        # read the assistant's answer aloud (question mode)
-answer_engine = "kokoro"    # "kokoro" (recommended) | "chatterbox" (torch cu128)
-voice = "ef_dora"           # Kokoro es voice: ef_dora (f) | em_alex (m) | em_santa (m)
+# engine for feedback AND answers:
+#   "piper"      = natural es-ES (Spain), torch-free (recommended)
+#   "kokoro"     = multilingual, but Spanish is Latin-American
+#   "chatterbox" = most natural, but pulls torch cu128 (opt-in; needs Python <3.14)
+engine = "piper"
+# voice — interpreted per engine:
+#   piper:      voice-model file, e.g. "es_ES-davefx-medium" | "es_ES-sharvard-medium"
+#   kokoro:     built-in id "ef_dora" (f) | "em_alex" (m) | "em_santa" (m)  [Latin-American]
+#   chatterbox: ignored (uses lang)
+voice = "es_ES-davefx-medium"
 speed = 1.0
 lang = "es"
 device = "cpu"              # "cpu" (recommended) | "cuda" (needs onnxruntime-gpu cu128)
@@ -249,6 +261,7 @@ def save_settings(
     tts_enabled: bool | None = None,
     tts_feedback: bool | None = None,
     tts_answers: bool | None = None,
+    tts_engine: str | None = None,
     tts_voice: str | None = None,
 ) -> None:
     """Persist a subset of settings to ``config.toml`` (for the Settings UI).
@@ -290,6 +303,8 @@ def save_settings(
         _table("tts")["speak_feedback"] = tts_feedback
     if tts_answers is not None:
         _table("tts")["speak_answers"] = tts_answers
+    if tts_engine is not None:
+        _table("tts")["engine"] = tts_engine
     if tts_voice is not None:
         _table("tts")["voice"] = tts_voice
 

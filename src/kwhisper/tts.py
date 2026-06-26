@@ -103,14 +103,14 @@ class TTSPlayer:
 
     # ---------- public API ----------
     def speak_feedback(self, text: str) -> None:
-        """A: read a command confirmation / error aloud (always Kokoro)."""
+        """A: read a command confirmation / error aloud."""
         if self.cfg.enabled and self.cfg.speak_feedback and text and text.strip():
-            self._enqueue("kokoro", text)
+            self._enqueue(self.cfg.engine, text)
 
     def speak_answer(self, text: str) -> None:
-        """B: read the assistant's answer aloud (engine per config)."""
+        """B: read the assistant's answer aloud."""
         if self.cfg.enabled and self.cfg.speak_answers and text and text.strip():
-            self._enqueue(self.cfg.answer_engine, text)
+            self._enqueue(self.cfg.engine, text)
 
     def cancel(self) -> None:
         """Barge-in: flush the queue and cut the current utterance (from PTT)."""
@@ -214,14 +214,12 @@ class TTSPlayer:
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 text=True, bufsize=1, env=env)
             self._proc = proc
-        # If Chatterbox (torch) is the answer engine, keep Kokoro on CPU so the worker
-        # never hosts two CUDA stacks (onnxruntime-gpu + torch) in one process.
-        device = "cpu" if self.cfg.answer_engine == "chatterbox" else self.cfg.device
         self._write(proc, {
             "cmd": "config",
+            "engine": self.cfg.engine,
             "model_dir": self.cfg.model_dir or str(default_model_dir()),
             "voice": self.cfg.voice, "speed": self.cfg.speed,
-            "lang": self.cfg.lang, "device": device,
+            "lang": self.cfg.lang, "device": self.cfg.device,
         })
         return proc
 
