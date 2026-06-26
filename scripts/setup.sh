@@ -53,9 +53,9 @@ ok "kwhisper instalado en el venv."
 
 # 3b) TTS: OPTIONAL voice output (spoken feedback + answers) -------------------
 say "Voz (TTS) — OPCIONAL: feedback y respuestas habladas"
-if ask "¿Instalar la salida de voz (Kokoro, CPU, sin torch)?"; then
+if ask "¿Instalar la salida de voz (Piper, CPU, sin torch)?"; then
   VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts]" \
-    || warn "No pude instalar el extra TTS (kokoro-onnx)."
+    || warn "No pude instalar el extra TTS (piper-tts, kokoro-onnx)."
   # Voice models (not shipped by pip). Idempotent download into the XDG data dir
   # that TTSConfig.model_dir defaults to. Default engine is Piper (Castilian es-ES).
   MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/kwhisper/models"

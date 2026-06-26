@@ -77,8 +77,13 @@ class _Piper:
         # normalize_audio=False + headroom (volume<1): Piper's default full-scale
         # normalization makes some voices (e.g. sharvard) clip/crackle on consonant
         # transients; leaving headroom removes the artefacts. speaker_id may be None
-        # for single-speaker models.
-        syn = SynthesisConfig(speaker_id=self._sid, normalize_audio=False, volume=0.85)
+        # for single-speaker models. length_scale is the inverse of speed (higher =
+        # slower), so honour [tts] speed as 1/speed; guard against a non-positive value.
+        speed = self.cfg.get("speed") or 1.0
+        if speed <= 0:
+            speed = 1.0
+        syn = SynthesisConfig(speaker_id=self._sid, length_scale=1.0 / speed,
+                              normalize_audio=False, volume=0.85)
         chunks = list(self._v.synthesize(text, syn_config=syn))
         audio = np.concatenate([c.audio_float_array for c in chunks])
         return audio, chunks[0].sample_rate

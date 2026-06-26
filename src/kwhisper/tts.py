@@ -149,6 +149,8 @@ class TTSPlayer:
         try:
             self._q.put_nowait(None)  # sentinel: wake the pump so it can exit
         except queue.Full:
+            # Queue already full: the pump is busy and will wake on the next get()
+            # after draining, so the sentinel is unnecessary — safe to drop it.
             pass
         with self._proc_lock:
             proc = self._proc

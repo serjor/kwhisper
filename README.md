@@ -65,8 +65,9 @@ The script (idempotent, asks for confirmation before each `sudo` change):
 4. Adds you to the `input` group (push-to-talk). **Requires logging out and back in.**
 5. Enables `ydotool.service` (user) and installs the `kwhisper.service` unit.
 
-The script also **offers (optional) voice/TTS**: it installs Kokoro and downloads
-its models, and optionally Chatterbox with torch cu128 for Blackwell.
+The script also **offers (optional) voice/TTS**: it installs Piper and Kokoro and
+downloads the default Piper voice models, and optionally Chatterbox with torch
+cu128 for Blackwell.
 
 Then:
 
