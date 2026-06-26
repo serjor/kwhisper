@@ -120,7 +120,7 @@ def test_i18n_catalogs_have_same_keys():
 def test_save_settings_roundtrip_preserves_comments(tmp_path):
     # The Settings dialog persists a subset of keys; everything else and all the
     # explanatory comments must survive the round-trip.
-    import kwhisper.config as config
+    from kwhisper import config
 
     cfg_dir = tmp_path / "kwhisper"
     cfg_path = cfg_dir / "config.toml"
@@ -174,7 +174,7 @@ def test_system_prompt_override_used_in_messages():
 
 
 def test_list_models_parses_tags(monkeypatch):
-    import kwhisper.llm as llm
+    from kwhisper import llm
 
     class _Resp:
         def raise_for_status(self):
@@ -188,7 +188,7 @@ def test_list_models_parses_tags(monkeypatch):
 
 
 def test_list_models_unreachable_returns_empty(monkeypatch):
-    import kwhisper.llm as llm
+    from kwhisper import llm
 
     def _boom(*a, **k):
         raise llm.httpx.ConnectError("nope")
