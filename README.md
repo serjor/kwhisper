@@ -180,7 +180,7 @@ External processes: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 ## Roadmap
 
 - [ ] Dedicated dual hotkey (one key = dictation, another = command) for zero ambiguity.
-- [ ] Graphical configuration dialog (PySide6).
+- [x] Graphical configuration dialog (PySide6) + first-run wizard (language, model, system prompt).
 - [ ] Fixed editing commands («new line», «delete that»).
 - [ ] Optional panel plasmoid (status via D-Bus).
 - [ ] PKGBUILD for the AUR.

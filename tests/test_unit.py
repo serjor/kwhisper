@@ -117,6 +117,86 @@ def test_i18n_catalogs_have_same_keys():
     assert set(_CATALOG["en"]) == set(_CATALOG["es"])
 
 
+def test_save_settings_roundtrip_preserves_comments(tmp_path):
+    # The Settings dialog persists a subset of keys; everything else and all the
+    # explanatory comments must survive the round-trip.
+    import kwhisper.config as config
+
+    cfg_dir = tmp_path / "kwhisper"
+    cfg_path = cfg_dir / "config.toml"
+    saved_dir, saved_path = config.CONFIG_DIR, config.CONFIG_PATH
+    config.CONFIG_DIR, config.CONFIG_PATH = cfg_dir, cfg_path
+    try:
+        config.save_settings(ui_lang="en", llm_model="qwen2.5",
+                             llm_system_prompt="Línea 1\nLínea 2")
+        text = cfg_path.read_text(encoding="utf-8")
+        assert "# kwhisper configuration" in text  # comments preserved
+        loaded = config.load_config()
+        assert loaded.ui.lang == "en"
+        assert loaded.llm.model == "qwen2.5"
+        assert loaded.llm.system_prompt == "Línea 1\nLínea 2"
+        assert loaded.llm.host == "http://127.0.0.1:11434"  # untouched default kept
+        # A second save only updates the given field, leaving the rest intact.
+        config.save_settings(ui_lang="es")
+        loaded2 = config.load_config()
+        assert loaded2.ui.lang == "es"
+        assert loaded2.llm.model == "qwen2.5"
+    finally:
+        config.CONFIG_DIR, config.CONFIG_PATH = saved_dir, saved_path
+
+
+def test_normalize_system_prompt():
+    from kwhisper.llm import DEFAULT_SYSTEM_PROMPT, normalize_system_prompt
+    # Blank or equal-to-default → "" (config records "use built-in", a rollback).
+    assert normalize_system_prompt("") == ""
+    assert normalize_system_prompt("   \n  ") == ""
+    assert normalize_system_prompt(DEFAULT_SYSTEM_PROMPT) == ""
+    assert normalize_system_prompt("\n" + DEFAULT_SYSTEM_PROMPT + "\n") == ""
+    # A genuine custom prompt is kept (trimmed).
+    assert normalize_system_prompt("  custom prompt  ") == "custom prompt"
+
+
+def test_system_prompt_override_used_in_messages():
+    from kwhisper.config import LLMConfig
+    from kwhisper.llm import DEFAULT_SYSTEM_PROMPT, IntentRouter
+    # Empty override → built-in default prompt.
+    router = IntentRouter(LLMConfig(system_prompt=""))
+    try:
+        assert router._messages("hola")[0]["content"] == DEFAULT_SYSTEM_PROMPT
+    finally:
+        router.close()
+    # Non-empty override → custom prompt wins.
+    router = IntentRouter(LLMConfig(system_prompt="SOY OTRO PROMPT"))
+    try:
+        assert router._messages("hola")[0]["content"] == "SOY OTRO PROMPT"
+    finally:
+        router.close()
+
+
+def test_list_models_parses_tags(monkeypatch):
+    import kwhisper.llm as llm
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"models": [{"name": "gemma3"}, {"name": "qwen2.5"}, {"bogus": 1}]}
+
+    monkeypatch.setattr(llm.httpx, "get", lambda *a, **k: _Resp())
+    assert llm.list_models("http://x") == ["gemma3", "qwen2.5"]  # sorted, name-only
+
+
+def test_list_models_unreachable_returns_empty(monkeypatch):
+    import kwhisper.llm as llm
+
+    def _boom(*a, **k):
+        raise llm.httpx.ConnectError("nope")
+
+    monkeypatch.setattr(llm.httpx, "get", _boom)
+    assert llm.list_models("http://x") == []
+
+
 def test_command_key_resolution():
     # Resolution of friendly keys → evdev keycodes (needs python-evdev).
     try:
