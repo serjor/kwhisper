@@ -2,10 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Carga y persistencia de la configuración de kwhisper.
+"""Loading and persistence of the kwhisper configuration.
 
-La config vive en ``~/.config/kwhisper/config.toml`` (XDG). Si no existe, se
-escribe una plantilla comentada con los valores por defecto la primera vez.
+The config lives in ``~/.config/kwhisper/config.toml`` (XDG). If it does not
+exist, a commented template with the default values is written the first time.
 """
 
 from __future__ import annotations
@@ -25,32 +25,32 @@ CONFIG_PATH = CONFIG_DIR / "config.toml"
 
 
 class HotkeyConfig(BaseModel):
-    # "evdev" = push-to-talk real (mantener pulsado); requiere grupo `input`.
-    # "portal" = atajo del portal en modo toggle (no requiere grupo input).
+    # "evdev" = real push-to-talk (press and hold); requires the `input` group.
+    # "portal" = portal shortcut in toggle mode (does not require the input group).
     backend: Literal["evdev", "portal"] = "evdev"
-    # Nombre evdev de la tecla PTT. Descúbrela con `kwhisper-findkey`.
+    # evdev name of the PTT key. Discover it with `kwhisper-findkey`.
     key: str = "KEY_PAUSE"
-    # Ruta /dev/input/eventX concreta; vacío = autodetectar teclados.
+    # Specific /dev/input/eventX path; empty = autodetect keyboards.
     device: str = ""
 
 
 class AudioConfig(BaseModel):
     samplerate: int = 16000
     channels: int = 1
-    # Nombre o índice de dispositivo de entrada (PortAudio); vacío = por defecto.
+    # Input device name or index (PortAudio); empty = default.
     device: str = ""
 
 
 class STTConfig(BaseModel):
     model: str = "large-v3-turbo"
-    # OBLIGATORIO float16 en Blackwell sm_120 (INT8 da CUBLAS_STATUS_NOT_SUPPORTED).
+    # float16 MANDATORY on Blackwell sm_120 (INT8 gives CUBLAS_STATUS_NOT_SUPPORTED).
     compute_type: str = "float16"
     device: str = "cuda"
-    # "es" fuerza español (estable con tecnicismos en inglés); "" = autodetección.
+    # "es" forces Spanish (stable with English technical terms); "" = autodetection.
     language: str = "es"
     beam_size: int = 1
     vad_filter: bool = True
-    # Pista inicial opcional con jerga frecuente para fijar términos en inglés.
+    # Optional initial hint with frequent jargon to pin English terms.
     initial_prompt: str = ""
 
 
@@ -62,15 +62,15 @@ class LLMConfig(BaseModel):
 
 
 class InjectConfig(BaseModel):
-    # "clipboard" = portapapeles + Ctrl+V (100% acentos); "dotool" = tecleo directo.
+    # "clipboard" = clipboard + Ctrl+V (100% accents); "dotool" = direct typing.
     method: Literal["clipboard", "dotool"] = "clipboard"
     paste_key: str = "ctrl+v"
     terminal_paste_key: str = "ctrl+shift+v"
     restore_clipboard: bool = True
-    # Margen antes de restaurar el portapapeles: la app destino pide el dato de
-    # forma diferida tras el Ctrl+V; un valor bajo puede restaurar antes de tiempo.
+    # Margin before restoring the clipboard: the target app requests the data in
+    # a deferred way after the Ctrl+V; a low value may restore too early.
     restore_delay: float = 0.5
-    # Detectar terminales (vía kdotool o KWin D-Bus) para usar Ctrl+Shift+V.
+    # Detect terminals (via kdotool or KWin D-Bus) to use Ctrl+Shift+V.
     detect_terminal: bool = True
 
 
@@ -78,6 +78,8 @@ class UIConfig(BaseModel):
     overlay: bool = True
     sounds: bool = True
     notifications: bool = True
+    # UI/CLI language: "auto" detects it from the locale; "es"/"en" force it.
+    lang: Literal["auto", "es", "en"] = "auto"
 
 
 class CommandsConfig(BaseModel):
@@ -96,70 +98,71 @@ class Config(BaseModel):
 
 
 DEFAULT_TOML = """\
-# Configuración de kwhisper — ~/.config/kwhisper/config.toml
-# Reinicia el daemon tras editar:  systemctl --user restart kwhisper
+# kwhisper configuration — ~/.config/kwhisper/config.toml
+# Restart the daemon after editing:  systemctl --user restart kwhisper
 
 [hotkey]
-# backend: "evdev" = push-to-talk real (mantener pulsado). Requiere grupo `input`.
-#          "portal" = atajo del portal en modo toggle (sin grupo input).
+# backend: "evdev" = real push-to-talk (hold the key down). Requires `input` group.
+#          "portal" = portal shortcut in toggle mode (no input group).
 backend = "evdev"
-# Tecla de push-to-talk. Descubre el nombre exacto con:  kwhisper-findkey
+# Push-to-talk key. Discover the exact name with:  kwhisper-findkey
 key = "KEY_PAUSE"
-# Dispositivo concreto (/dev/input/eventX). Vacío = autodetectar teclados.
+# Specific device (/dev/input/eventX). Empty = autodetect keyboards.
 device = ""
 
 [audio]
 samplerate = 16000
 channels = 1
-# Nombre/índice del micro (PortAudio). Vacío = entrada por defecto del sistema.
+# Mic name/index (PortAudio). Empty = system default input.
 device = ""
 
 [stt]
 model = "large-v3-turbo"
-compute_type = "float16"   # OBLIGATORIO en RTX 50xx (Blackwell). No pongas int8.
+compute_type = "float16"   # MANDATORY on RTX 50xx (Blackwell). Do not use int8.
 device = "cuda"
-language = "es"            # "" para autodetección de idioma
+language = "es"            # "" for language autodetection
 beam_size = 1
 vad_filter = true
-initial_prompt = ""        # ej: "kubernetes, pull request, deploy, commit"
+initial_prompt = ""        # e.g.: "kubernetes, pull request, deploy, commit"
 
 [llm]
-# false = NO se usa el LLM: dicta la transcripción tal cual (sin corregir
-#         puntuación/mayúsculas ni clasificar comandos).
-# true  = el LLM corrige la puntuación del dictado y, si [commands].enabled,
-#         además clasifica y ejecuta comandos de voz.
+# false = the LLM is NOT used: dictates the transcription as-is (without fixing
+#         punctuation/capitalization or classifying commands).
+# true  = the LLM fixes dictation punctuation and, if [commands].enabled,
+#         also classifies and executes voice commands.
 enabled = true
 host = "http://127.0.0.1:11434"
 model = "gemma3"
 timeout = 8.0
 
 [inject]
-method = "clipboard"       # "clipboard" (recomendado) | "dotool"
+method = "clipboard"       # "clipboard" (recommended) | "dotool"
 paste_key = "ctrl+v"
 terminal_paste_key = "ctrl+shift+v"
 restore_clipboard = true
-restore_delay = 0.5        # sube esto si al pegar aparece el portapapeles anterior
-detect_terminal = true     # Ctrl+Shift+V en terminales (vía kdotool o KWin D-Bus)
+restore_delay = 0.5        # raise this if the previous clipboard appears when pasting
+detect_terminal = true     # Ctrl+Shift+V in terminals (via kdotool or KWin D-Bus)
 
 [ui]
 overlay = true
 sounds = true
 notifications = true
+lang = "auto"             # UI/CLI language: "auto" (from locale) | "es" | "en"
 
 [commands]
-# false = nunca se ejecutan comandos (pero si [llm].enabled sigue corrigiendo
-#         la puntuación del dictado). true = "abre <app>"/"pulsa <tecla>" se
-#         ejecutan; requiere [llm].enabled = true.
+# false = commands are never executed (but if [llm].enabled it still fixes
+#         dictation punctuation). true = "abre <app>"/"pulsa <tecla>" get
+#         executed; requires [llm].enabled = true.
 enabled = true
-allow_launch = true        # permitir "abre <app>"
+allow_launch = true        # allow "abre <app>"
 """
 
 
 def load_config() -> Config:
-    """Carga la config; si no existe, escribe la plantilla por defecto.
+    """Load the config; if it does not exist, write the default template.
 
-    Ante TOML mal formado o valores inválidos, sale limpiamente con un mensaje
-    legible (no un traceback, ni defaults silenciosos que ignoren tu intención).
+    On malformed TOML or invalid values, exit cleanly with a readable message
+    (not a traceback, nor silent defaults that ignore your intent).
     """
     if not CONFIG_PATH.exists():
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -169,10 +172,10 @@ def load_config() -> Config:
         with CONFIG_PATH.open("rb") as fh:
             data = tomllib.load(fh)
     except tomllib.TOMLDecodeError as exc:
-        log.error("config.toml mal formado (%s): %s", CONFIG_PATH, exc)
+        log.error("Malformed config.toml (%s): %s", CONFIG_PATH, exc)
         raise SystemExit(1) from exc
     try:
         return Config.model_validate(data)
     except ValidationError as exc:
-        log.error("Valor inválido en %s:\n%s", CONFIG_PATH, exc)
+        log.error("Invalid value in %s:\n%s", CONFIG_PATH, exc)
         raise SystemExit(1) from exc

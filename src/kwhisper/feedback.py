@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Realimentación sonora del dictado (inicio/fin/error) vía libcanberra."""
+"""Audio feedback for dictation (start/stop/error) via libcanberra."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .config import UIConfig
 
 log = logging.getLogger(__name__)
 
-# Eventos sonoros estándar de freedesktop.
+# Standard freedesktop sound events.
 _EVENTS = {
     "start": "audio-volume-change",
     "stop": "complete",
@@ -32,8 +32,8 @@ class Feedback:
         self._procs: list[subprocess.Popen] = []
 
     def _spawn(self, args: list[str]) -> None:
-        # Conserva la referencia y poda los procesos de sonido ya terminados
-        # (evita zombies sin perder el Popen).
+        # Keep the reference and prune already-finished sound processes
+        # (avoids zombies without losing the Popen).
         self._procs = [p for p in self._procs if p.poll() is None]
         self._procs.append(subprocess.Popen(
             args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
@@ -52,4 +52,4 @@ class Feedback:
             if self._paplay and os.path.exists(path):
                 self._spawn([self._paplay, path])
         except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo reproducir sonido %s: %s", event, exc)
+            log.debug("Could not play sound %s: %s", event, exc)

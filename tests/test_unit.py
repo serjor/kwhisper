@@ -2,9 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Pruebas unitarias puras (sin GPU, sin Wayland, sin Ollama).
+"""Pure unit tests (no GPU, no Wayland, no Ollama).
 
-Ejecuta:  python -m pytest tests/  ·  o directamente:  python tests/test_unit.py
+Run:  python -m pytest tests/  ·  or directly:  python tests/test_unit.py
 """
 
 from __future__ import annotations
@@ -23,42 +23,42 @@ def test_paste_args_simple():
 
 def test_paste_args_terminal():
     from kwhisper.inject import _paste_args
-    # Ctrl+Shift+V → orden correcto de press/release anidado
+    # Ctrl+Shift+V → correct nested press/release order
     assert _paste_args("ctrl+shift+v") == ["29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
 
 
 def test_pick_clipboard_type_prefers_plain():
-    # konsole ofrece text/html PRIMERO; guardar/restaurar ese tipo contaminaba
-    # los alias de texto con HTML crudo. Debe preferirse text/plain.
+    # konsole offers text/html FIRST; saving/restoring that type contaminated
+    # the text aliases with raw HTML. text/plain should be preferred.
     from kwhisper.inject import _pick_clipboard_type
     konsole = "text/html\ntext/plain\ntext/plain;charset=utf-8\nTEXT\nSTRING\nUTF8_STRING"
     assert _pick_clipboard_type(konsole) == "text/plain"
-    # Sin texto plano (p.ej. una imagen) se conserva el primer tipo ofrecido.
+    # Without plain text (e.g. an image) the first offered type is kept.
     assert _pick_clipboard_type("image/png\nimage/bmp") == "image/png"
-    # Solo text/plain con charset: se respeta tal cual.
+    # Only text/plain with a charset: respected as-is.
     assert _pick_clipboard_type("text/html\ntext/plain;charset=utf-8") == "text/plain;charset=utf-8"
-    # Lista vacía → cadena vacía (no revienta).
+    # Empty list → empty string (doesn't blow up).
     assert _pick_clipboard_type("") == ""
 
 
 def test_config_defaults():
     from kwhisper.config import Config
     cfg = Config()
-    assert cfg.stt.compute_type == "float16"  # crítico en Blackwell
+    assert cfg.stt.compute_type == "float16"  # critical on Blackwell
     assert cfg.hotkey.backend == "evdev"
     assert cfg.inject.method == "clipboard"
 
 
 def test_intent_fallback_to_dictation():
-    # El modelo Intent por defecto es dictado (lo que usa el fallback).
+    # The default Intent model is dictation (what the fallback uses).
     from kwhisper.llm import Intent
-    i = Intent(tipo="dictado", texto="hola mundo")
-    assert i.tipo == "dictado" and i.texto == "hola mundo"
-    assert i.accion == "ninguna"
+    i = Intent(kind="dictation", text="hola mundo")
+    assert i.kind == "dictation" and i.text == "hola mundo"
+    assert i.action == "none"
 
 
 def test_invalid_backend_rejected():
-    # Literal: un backend con typo debe fallar la validación (no caer en evdev).
+    # Literal: a backend with a typo must fail validation (not fall back to evdev).
     from pydantic import ValidationError
     from kwhisper.config import Config
     try:
@@ -69,8 +69,8 @@ def test_invalid_backend_rejected():
 
 
 def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
-    # Sin DBUS_SESSION_BUS_ADDRESS pero con $XDG_RUNTIME_DIR/bus presente, se
-    # deriva la dirección del bus (caso systemd --user que rompía el pegado).
+    # Without DBUS_SESSION_BUS_ADDRESS but with $XDG_RUNTIME_DIR/bus present, the
+    # bus address is derived (the systemd --user case that broke pasting).
     import os
     from kwhisper.window import ensure_session_bus
 
@@ -78,12 +78,12 @@ def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
     runtime = Path(__file__).resolve().parent / "_busdir_tmp"
     try:
         runtime.mkdir(exist_ok=True)
-        (runtime / "bus").write_bytes(b"")  # marcador del socket (basta que exista)
+        (runtime / "bus").write_bytes(b"")  # socket marker (just needs to exist)
         os.environ.pop("DBUS_SESSION_BUS_ADDRESS", None)
         os.environ["XDG_RUNTIME_DIR"] = str(runtime)
         ensure_session_bus()
         assert os.environ["DBUS_SESSION_BUS_ADDRESS"] == f"unix:path={runtime / 'bus'}"
-        # Idempotente: no pisa un valor ya presente.
+        # Idempotent: doesn't overwrite an already-present value.
         os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/keep/me"
         ensure_session_bus()
         assert os.environ["DBUS_SESSION_BUS_ADDRESS"] == "unix:path=/keep/me"
@@ -97,12 +97,32 @@ def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
         runtime.rmdir()
 
 
+def test_i18n_lookup_and_fallback():
+    # Translation, interpolation and fallback to English for unknown languages.
+    from kwhisper import i18n
+    i18n.set_language("es")
+    assert i18n.t("ready") == "Listo para dictar."
+    assert i18n.t("cmd.opening", app="firefox") == "Abriendo firefox"
+    i18n.set_language("en")
+    assert i18n.t("ready") == "Ready to dictate."
+    i18n.set_language("xx")  # unknown → English fallback
+    assert i18n.get_language() == "en"
+    # Missing key returns the key itself (never raises).
+    assert i18n.t("nope.not.here") == "nope.not.here"
+
+
+def test_i18n_catalogs_have_same_keys():
+    # Both languages must define exactly the same set of keys (no gaps).
+    from kwhisper.i18n import _CATALOG
+    assert set(_CATALOG["en"]) == set(_CATALOG["es"])
+
+
 def test_command_key_resolution():
-    # Resolución de teclas amigables → keycodes evdev (necesita python-evdev).
+    # Resolution of friendly keys → evdev keycodes (needs python-evdev).
     try:
         from evdev import ecodes
     except ImportError:
-        return  # entorno sin evdev: omitir
+        return  # environment without evdev: skip
     from kwhisper.commands import _KEY_ALIASES
     assert ecodes.ecodes[_KEY_ALIASES["enter"]] == ecodes.ecodes["KEY_ENTER"]
     assert ecodes.ecodes[_KEY_ALIASES["ctrl"]] == ecodes.ecodes["KEY_LEFTCTRL"]

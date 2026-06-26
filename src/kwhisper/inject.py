@@ -2,15 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Inyección de texto en la ventana enfocada bajo KWin/Wayland.
+"""Text injection into the focused window under KWin/Wayland.
 
-Método principal (recomendado): copiar al portapapeles con ``wl-copy`` y simular
-``Ctrl+V`` con ``ydotool``. Es el único camino 100% fiable para acentos del
-español (ñ, á, ¿, ¡, ü) en KWin, porque el carácter viaja como dato del
-portapapeles y solo se simula una combinación fija invariante al layout.
+Primary method (recommended): copy to the clipboard with ``wl-copy`` and
+simulate ``Ctrl+V`` with ``ydotool``. This is the only 100% reliable path for
+Spanish accents (ñ, á, ¿, ¡, ü) in KWin, because the character travels as
+clipboard data and only a fixed, layout-invariant key combination is simulated.
 
-Método alternativo: ``dotool`` con ``DOTOOL_XKB_LAYOUT=es`` (tecleo directo,
-no pisa el portapapeles, pero puede fallar con algún signo AltGr).
+Alternative method: ``dotool`` with ``DOTOOL_XKB_LAYOUT=es`` (direct typing,
+does not clobber the clipboard, but may fail with some AltGr symbols).
 """
 
 from __future__ import annotations
@@ -23,11 +23,12 @@ import threading
 import time
 
 from .config import InjectConfig
+from .i18n import t
 from .window import WindowDetector
 
 log = logging.getLogger(__name__)
 
-# Keycodes evdev (invariantes al layout) para construir atajos en ydotool.
+# evdev keycodes (layout-invariant) for building ydotool shortcuts.
 _KEYCODES = {
     "ctrl": 29, "control": 29, "leftctrl": 29,
     "shift": 42, "leftshift": 42,
@@ -36,7 +37,7 @@ _KEYCODES = {
     "v": 47,
 }
 
-# Clases de ventana (WM_CLASS) que pegan con Ctrl+Shift+V en vez de Ctrl+V.
+# Window classes (WM_CLASS) that paste with Ctrl+Shift+V instead of Ctrl+V.
 _TERMINAL_CLASSES = {
     "konsole", "yakuake", "alacritty", "kitty", "wezterm", "org.wezfurlong.wezterm",
     "foot", "footclient", "gnome-terminal", "xterm", "st", "terminator", "tilix",
@@ -57,30 +58,30 @@ def _ydotool_env() -> dict[str, str]:
 
 
 def _paste_args(combo: str) -> list[str]:
-    """'ctrl+shift+v' -> ['29:1','42:1','47:1','47:0','42:0','29:0'] para ydotool."""
+    """'ctrl+shift+v' -> ['29:1','42:1','47:1','47:0','42:0','29:0'] for ydotool."""
     parts = [p.strip().lower() for p in combo.split("+") if p.strip()]
     codes = []
     for p in parts:
         if p not in _KEYCODES:
-            raise InjectionError(f"Tecla desconocida en combinación de pegado: {p!r}")
+            raise InjectionError(t("inject.unknown_paste_key", key=repr(p)))
         codes.append(_KEYCODES[p])
     seq = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
     return seq
 
 
 def _pick_clipboard_type(types_text: str) -> str:
-    """Elige el tipo MIME a guardar/restaurar de la salida de ``wl-paste --list-types``.
+    """Choose the MIME type to save/restore from ``wl-paste --list-types`` output.
 
-    Prefiere texto plano sobre ``text/html``: restaurar con ``wl-copy -t text/html``
-    hace que ``wl-copy`` ofrezca ese HTML bajo TODOS los alias de texto
-    (``text/plain`` incluido), y entonces konsole pega el HTML crudo en vez del
-    texto. Si no hay texto plano, cae al primer tipo ofrecido, para conservar
-    imágenes u otros contenidos no textuales.
+    Prefers plain text over ``text/html``: restoring with ``wl-copy -t text/html``
+    makes ``wl-copy`` offer that HTML under ALL text aliases (``text/plain``
+    included), and then konsole pastes the raw HTML instead of the text. If there
+    is no plain text, it falls back to the first offered type, to preserve images
+    or other non-textual content.
     """
-    types = [t.strip() for t in types_text.splitlines() if t.strip()]
-    for t in types:
-        if t.lower().startswith("text/plain"):
-            return t
+    types = [ty.strip() for ty in types_text.splitlines() if ty.strip()]
+    for ty in types:
+        if ty.lower().startswith("text/plain"):
+            return ty
     return types[0] if types else ""
 
 
@@ -91,12 +92,12 @@ class TextInjector:
         self._have_wlcopy = shutil.which("wl-copy") is not None
         self._have_dotool = shutil.which("dotool") is not None
         self._detector = WindowDetector()
-        # Serializa inyecciones: la restauración diferida del portapapeles lo
-        # toma y lo suelta al terminar, de modo que la siguiente inyección
-        # espera a que el portapapeles del usuario esté de vuelta.
+        # Serialize injections: the deferred clipboard restore acquires it and
+        # releases it when done, so the next injection waits until the user's
+        # clipboard is back.
         self._inject_lock = threading.Lock()
         if cfg.method == "clipboard" and not (self._have_ydotool and self._have_wlcopy):
-            log.error("Faltan herramientas: ydotool=%s wl-copy=%s (instala con pacman)",
+            log.error("Missing tools: ydotool=%s wl-copy=%s (install with pacman)",
                       self._have_ydotool, self._have_wlcopy)
 
     def _is_terminal(self) -> bool:
@@ -104,12 +105,12 @@ class TextInjector:
             return False
         return self._detector.active_class() in _TERMINAL_CLASSES
 
-    # --- API principal ---
+    # --- main API ---
     def inject(self, text: str) -> None:
         if not text:
             return
-        # Tomamos el lock para toda la inyección. El método de portapapeles puede
-        # delegar su liberación al hilo de restauración diferida (ver abajo).
+        # We hold the lock for the entire injection. The clipboard method may
+        # delegate its release to the deferred restore thread (see below).
         self._inject_lock.acquire()
         if self.cfg.method == "dotool" and self._have_dotool:
             try:
@@ -117,52 +118,50 @@ class TextInjector:
             finally:
                 self._inject_lock.release()
         else:
-            self._inject_clipboard(text)  # gestiona la liberación del lock
+            self._inject_clipboard(text)  # manages releasing the lock
 
     def _inject_clipboard(self, text: str) -> None:
-        """Pega via portapapeles. Se llama con ``_inject_lock`` TOMADO y
-        garantiza liberarlo EXACTAMENTE una vez por CUALQUIER camino: el
-        ``finally`` lo suelta salvo que se haya transferido al hilo de
-        restauración diferida (que lo soltará él)."""
+        """Paste via clipboard. Called with ``_inject_lock`` HELD and guarantees
+        releasing it EXACTLY once on ANY path: the ``finally`` releases it unless
+        it has been transferred to the deferred restore thread (which will then
+        release it)."""
         lock_transferred = False
         try:
             if not (self._have_ydotool and self._have_wlcopy):
-                raise InjectionError(
-                    "Inyección por portapapeles requiere 'ydotool' y 'wl-copy'. "
-                    "Instala: sudo pacman -S ydotool wl-clipboard"
-                )
+                raise InjectionError(t("inject.clipboard_requires"))
             env = _ydotool_env()
-            # Detectar terminal ANTES de tocar el portapapeles (la ventana
-            # enfocada ahora es la de destino; el overlay no roba el foco).
+            # Detect the terminal BEFORE touching the clipboard (the focused
+            # window is now the target one; the overlay does not steal focus).
             combo = self.cfg.terminal_paste_key if self._is_terminal() else self.cfg.paste_key
             prev = self._save_clipboard()
 
             paste_error: Exception | None = None
             try:
-                seq = _paste_args(combo)  # puede lanzar si la combinación es inválida
+                seq = _paste_args(combo)  # may raise if the combination is invalid
                 subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True)
-                time.sleep(0.03)  # margen para que el portapapeles propague
+                time.sleep(0.03)  # margin for the clipboard to propagate
                 subprocess.run(["ydotool", "key", *seq], check=True, env=env)
             except subprocess.CalledProcessError as exc:
-                paste_error = InjectionError(f"Fallo al pegar: {exc}")
-            except Exception as exc:  # noqa: BLE001  (p.ej. tecla inválida en combo)
+                paste_error = InjectionError(t("inject.paste_failed", error=exc))
+            except Exception as exc:  # noqa: BLE001  (e.g. invalid key in combo)
                 paste_error = exc
 
-            # La restauración SIEMPRE ocurre (aunque el pegado fallara), para no
-            # dejar el dictado en el portapapeles del usuario.
+            # Restoration ALWAYS happens (even if the paste failed), so as not to
+            # leave the dictation in the user's clipboard.
             if self.cfg.restore_clipboard:
-                # Diferida en segundo plano: inject() retorna tras el pegado y el
-                # worker libera _processing sin esperar restore_delay; el lock lo
-                # suelta el hilo de restauración. Si el arranque del hilo falla
-                # (p.ej. RuntimeError al agotar hilos), restauramos en línea y
-                # dejamos que el finally libere el lock (sin transferirlo).
-                t = threading.Thread(target=self._delayed_restore, args=(prev,),
-                                     name="clip-restore", daemon=True)
+                # Deferred in the background: inject() returns after the paste and
+                # the worker frees _processing without waiting for restore_delay;
+                # the lock is released by the restore thread. If starting the
+                # thread fails (e.g. RuntimeError when threads are exhausted), we
+                # restore inline and let the finally release the lock (without
+                # transferring it).
+                restore_thread = threading.Thread(target=self._delayed_restore, args=(prev,),
+                                                  name="clip-restore", daemon=True)
                 try:
-                    t.start()
+                    restore_thread.start()
                 except Exception:  # noqa: BLE001
-                    log.warning("No se pudo lanzar el hilo de restauración; "
-                                "restaurando el portapapeles en línea.")
+                    log.warning("Could not start the restore thread; "
+                                "restoring the clipboard inline.")
                     self._restore_clipboard(prev)
                 else:
                     lock_transferred = True
@@ -183,9 +182,10 @@ class TextInjector:
     def _inject_dotool(self, text: str) -> None:
         env = dict(os.environ)
         env.setdefault("DOTOOL_XKB_LAYOUT", "es")
-        # dotool lee una orden por línea de stdin: un texto con saltos rompería
-        # el parseo (las líneas siguientes se tomarían como comandos). Troceamos:
-        # cada línea se teclea con `type` y los saltos se envían como Return.
+        # dotool reads one command per line from stdin: text with newlines would
+        # break the parsing (subsequent lines would be taken as commands). We
+        # split it up: each line is typed with `type` and newlines are sent as
+        # Return.
         cmds: list[str] = []
         for i, line in enumerate(text.split("\n")):
             if i:
@@ -199,13 +199,13 @@ class TextInjector:
             subprocess.run(["dotool"], input=script.encode("utf-8"),
                            check=True, env=env)
         except subprocess.CalledProcessError as exc:
-            raise InjectionError(f"dotool falló: {exc}") from exc
+            raise InjectionError(t("inject.dotool_failed", error=exc)) from exc
 
-    # --- portapapeles ---
+    # --- clipboard ---
     def _save_clipboard(self) -> tuple[bytes | None, str | None, bool]:
-        """Devuelve (datos, mime, ok). ok=False si NO se pudo leer (timeout/error):
-        en ese caso no se restaurará, para no borrar lo que el usuario tuviera
-        (p.ej. una imagen grande que tardó más que el timeout)."""
+        """Returns (data, mime, ok). ok=False if it could NOT be read (timeout/error):
+        in that case it won't be restored, so as not to erase whatever the user
+        had (e.g. a large image that took longer than the timeout)."""
         try:
             mime = ""
             types = subprocess.run(["wl-paste", "--list-types"],
@@ -215,17 +215,17 @@ class TextInjector:
             cmd = ["wl-paste", "-n", *(["-t", mime] if mime else [])]
             out = subprocess.run(cmd, capture_output=True, timeout=10)
             if out.returncode != 0:
-                return (None, None, True)  # portapapeles vacío (confirmado)
+                return (None, None, True)  # empty clipboard (confirmed)
             return (out.stdout, mime or None, True)
         except (subprocess.TimeoutExpired, OSError) as exc:
-            log.warning("No se pudo leer el portapapeles (%s); no se restaurará "
-                        "para no perder su contenido.", exc)
+            log.warning("Could not read the clipboard (%s); it will not be restored "
+                        "to avoid losing its contents.", exc)
             return (None, None, False)
 
     def _restore_clipboard(self, saved: tuple[bytes | None, str | None, bool]) -> None:
         data, mime, ok = saved
         if not ok:
-            return  # no sabemos qué había → no tocar (mejor que borrar)
+            return  # we don't know what was there → don't touch (better than erasing)
         try:
             if data:
                 subprocess.run(["wl-copy", *(["-t", mime] if mime else [])],
@@ -233,4 +233,4 @@ class TextInjector:
             else:
                 subprocess.run(["wl-copy", "--clear"], check=False)
         except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo restaurar el portapapeles: %s", exc)
+            log.debug("Could not restore the clipboard: %s", exc)

@@ -2,10 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Diagnóstico del entorno: ``kwhisper-doctor``.
+"""Environment diagnostics: ``kwhisper-doctor``.
 
-Comprueba GPU/CUDA, herramientas de Wayland, permisos y Ollama, e informa de qué
-falta para que kwhisper funcione. No modifica nada.
+Checks GPU/CUDA, Wayland tools, permissions and Ollama, and reports what is
+missing for kwhisper to work. It does not modify anything.
 """
 
 from __future__ import annotations
@@ -15,6 +15,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+from .i18n import set_language, t
 
 OK = "\033[32m✔\033[0m"
 WARN = "\033[33m‼\033[0m"
@@ -26,7 +28,7 @@ def _line(status: str, label: str, detail: str = "") -> None:
 
 
 def _check_gpu() -> None:
-    print("GPU / CUDA")
+    print(t("doctor.sec_gpu"))
     if shutil.which("nvidia-smi"):
         try:
             out = subprocess.run(
@@ -35,109 +37,111 @@ def _check_gpu() -> None:
             ).stdout.strip()
             _line(OK, "nvidia-smi", out)
         except Exception as exc:  # noqa: BLE001
-            _line(WARN, "nvidia-smi falló", str(exc))
+            _line(WARN, t("doctor.nvidia_smi_failed"), str(exc))
     else:
-        _line(BAD, "nvidia-smi no encontrado")
+        _line(BAD, t("doctor.nvidia_smi_not_found"))
     try:
         import ctranslate2
         ver = ctranslate2.__version__
         status = OK if tuple(int(x) for x in ver.split(".")[:2]) >= (4, 7) else WARN
-        _line(status, "ctranslate2", f"{ver} (recomendado ≥4.7 para int8 en sm_120; float16 va siempre)")
+        _line(status, "ctranslate2", t("doctor.ct2_detail", ver=ver))
     except Exception as exc:  # noqa: BLE001
-        _line(BAD, "ctranslate2 no importable", str(exc))
+        _line(BAD, t("doctor.ct2_not_importable"), str(exc))
     try:
         import faster_whisper  # noqa: F401
-        _line(OK, "faster-whisper importable")
+        _line(OK, t("doctor.fw_importable"))
     except Exception as exc:  # noqa: BLE001
-        _line(BAD, "faster-whisper no importable", str(exc))
+        _line(BAD, t("doctor.fw_not_importable"), str(exc))
     for mod in ("nvidia.cublas.lib", "nvidia.cudnn.lib"):
         try:
             __import__(mod)
-            _line(OK, f"{mod} presente")
+            _line(OK, t("doctor.mod_present", mod=mod))
         except Exception:  # noqa: BLE001
-            _line(WARN, f"{mod} ausente", "se usará CUDA del sistema (revisa LD_LIBRARY_PATH)")
+            _line(WARN, t("doctor.mod_absent", mod=mod), t("doctor.mod_absent_detail"))
 
 
 def _check_wayland_tools() -> None:
-    print("\nWayland / inyección")
+    print("\n" + t("doctor.sec_wayland"))
     for tool, required in (("ydotool", True), ("wl-copy", True), ("wl-paste", True),
                            ("kdotool", False), ("dotool", False)):
         if shutil.which(tool):
             _line(OK, tool)
         else:
-            _line(BAD if required else WARN, f"{tool} no instalado",
-                  "" if required else "opcional")
-    # socket de ydotool
+            _line(BAD if required else WARN, t("doctor.tool_not_installed", tool=tool),
+                  "" if required else t("doctor.optional"))
+    # ydotool socket
     sock = os.environ.get("YDOTOOL_SOCKET", f"/run/user/{os.getuid()}/.ydotool_socket")
     if os.path.exists(sock):
-        _line(OK, "socket ydotoold", sock)
+        _line(OK, t("doctor.ydotool_socket"), sock)
     else:
-        _line(WARN, "socket ydotoold no existe", f"{sock} — arranca: systemctl --user enable --now ydotool")
-    # bus de sesión D-Bus (necesario para la detección de terminal por KWin;
-    # bajo systemd puede no propagarse y entonces se pega con Ctrl+V en konsole).
+        _line(WARN, t("doctor.ydotool_socket_missing"), t("doctor.ydotool_socket_hint", sock=sock))
+    # D-Bus session bus (needed for terminal detection via KWin; under systemd
+    # it may not propagate, and then pasting falls back to Ctrl+V in konsole).
     from .window import ensure_session_bus
     ensure_session_bus()
     bus = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
     if bus:
-        _line(OK, "bus de sesión D-Bus", bus)
+        _line(OK, t("doctor.dbus_bus"), bus)
     else:
-        _line(WARN, "bus de sesión D-Bus ausente",
-              "sin DBUS_SESSION_BUS_ADDRESS ni $XDG_RUNTIME_DIR/bus — KWin no es alcanzable")
-    # detección de terminal (Ctrl+Shift+V)
+        _line(WARN, t("doctor.dbus_bus_absent"), t("doctor.dbus_bus_absent_detail"))
+    # terminal detection (Ctrl+Shift+V)
     try:
         from .window import WindowDetector
         backend = WindowDetector().backend
-        if backend == "ninguno":
-            _line(WARN, "detección de terminal", "sin backend — siempre Ctrl+V (instala kdotool o KWin/gdbus)")
+        if backend == "none":
+            _line(WARN, t("doctor.term_detect"), t("doctor.term_detect_none"))
         else:
-            _line(OK, "detección de terminal", f"backend: {backend}")
+            _line(OK, t("doctor.term_detect"), t("doctor.term_detect_backend", backend=backend))
     except Exception as exc:  # noqa: BLE001
-        _line(WARN, "detección de terminal", str(exc))
+        _line(WARN, t("doctor.term_detect"), str(exc))
 
 
 def _check_permissions() -> None:
-    print("\nPermisos")
+    print("\n" + t("doctor.sec_permissions"))
     groups = {grp.getgrgid(g).gr_name for g in os.getgroups()}
     if "input" in groups:
-        _line(OK, "grupo input", "push-to-talk evdev disponible")
+        _line(OK, t("doctor.input_group"), t("doctor.input_group_detail"))
     else:
-        _line(WARN, "no estás en el grupo input",
-              "sudo usermod -aG input $USER (relogin) — o usa backend=portal")
+        _line(WARN, t("doctor.no_input_group"), t("doctor.no_input_group_detail"))
     if os.access("/dev/uinput", os.W_OK):
-        _line(OK, "/dev/uinput escribible", "ydotool puede inyectar")
+        _line(OK, t("doctor.uinput_writable"), t("doctor.uinput_writable_detail"))
     else:
-        _line(WARN, "/dev/uinput no escribible", "ACL de logind ausente; ¿sesión activa?")
+        _line(WARN, t("doctor.uinput_not_writable"), t("doctor.uinput_not_writable_detail"))
 
 
 def _check_ollama() -> None:
-    print("\nOllama (clasificación de comandos)")
+    print("\n" + t("doctor.sec_ollama"))
     try:
         import httpx
         from .config import load_config
         cfg = load_config()
         r = httpx.get(f"{cfg.llm.host}/api/tags", timeout=3)
-        # Ollama expone el nombre del modelo en "name" (o "model" en versiones
-        # recientes de /api/tags); aceptamos ambos para no fallar al detectarlo.
+        # Ollama exposes the model name under "name" (or "model" in recent
+        # versions of /api/tags); we accept both so detection doesn't fail.
         models = [m.get("name") or m.get("model", "") for m in r.json().get("models", [])]
         models = [m for m in models if m]
-        _line(OK, "Ollama responde", cfg.llm.host)
+        _line(OK, t("doctor.ollama_responds"), cfg.llm.host)
         want = cfg.llm.model
         if any(m.split(":")[0] == want.split(":")[0] for m in models):
-            _line(OK, f"modelo '{want}' disponible")
+            _line(OK, t("doctor.model_available", model=want))
         else:
-            _line(WARN, f"modelo '{want}' no está", f"ollama pull {want}  · tienes: {', '.join(models[:6])}")
+            _line(WARN, t("doctor.model_missing", model=want),
+                  t("doctor.model_missing_detail", model=want, have=", ".join(models[:6])))
     except Exception as exc:  # noqa: BLE001
-        _line(WARN, "Ollama no disponible", f"{exc} (el dictado funciona igual, sin comandos)")
+        _line(WARN, t("doctor.ollama_unavailable"), t("doctor.ollama_unavailable_detail", error=exc))
 
 
 def main() -> int:
-    print(f"kwhisper doctor — python {sys.version.split()[0]}\n")
+    from .config import load_config
+    set_language(load_config().ui.lang)
+    print(t("doctor.title", ver=sys.version.split()[0]) + "\n")
     _check_gpu()
     _check_wayland_tools()
     _check_permissions()
     _check_ollama()
     from .config import CONFIG_PATH
-    print(f"\nConfig: {CONFIG_PATH} ({'existe' if CONFIG_PATH.exists() else 'se creará al arrancar'})")
+    state = t("doctor.config_exists") if CONFIG_PATH.exists() else t("doctor.config_will_create")
+    print("\n" + t("doctor.config_line", path=CONFIG_PATH, state=state))
     return 0
 
 

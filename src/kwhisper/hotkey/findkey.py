@@ -2,14 +2,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Helper interactivo: pulsa una tecla y muestra su nombre evdev para config.toml.
+"""Interactive helper: press a key and show its evdev name for config.toml.
 
-Uso:  kwhisper-findkey
+Usage:  kwhisper-findkey
 """
 
 from __future__ import annotations
 
 import sys
+
+from ..i18n import t
 
 
 def main() -> int:
@@ -17,17 +19,17 @@ def main() -> int:
         import evdev
         from evdev import ecodes
     except ImportError:
-        print("Falta python-evdev. Instala con: sudo pacman -S python-evdev", file=sys.stderr)
+        print(t("findkey.no_evdev"), file=sys.stderr)
         return 1
 
     devices = [evdev.InputDevice(p) for p in evdev.list_devices()]
     keyboards = [d for d in devices if ecodes.EV_KEY in d.capabilities()]
     if not keyboards:
-        print("No se encontró ningún teclado. ¿Estás en el grupo 'input'?", file=sys.stderr)
-        print("  sudo usermod -aG input $USER   (luego cierra sesión y vuelve a entrar)", file=sys.stderr)
+        print(t("findkey.no_keyboard"), file=sys.stderr)
+        print(t("findkey.no_keyboard_hint"), file=sys.stderr)
         return 1
 
-    print("Pulsa la tecla que quieras usar para push-to-talk (Ctrl+C para salir)…\n")
+    print(t("findkey.prompt"))
     import selectors
 
     sel = selectors.DefaultSelector()
@@ -40,13 +42,14 @@ def main() -> int:
                 dev = key.fileobj
                 for event in dev.read():
                     if event.type != ecodes.EV_KEY or event.value != 1:
-                        continue  # solo KEY_DOWN
+                        continue  # KEY_DOWN only
                     names = ecodes.keys.get(event.code, f"CODE_{event.code}")
                     name = names[0] if isinstance(names, (list, tuple)) else names
-                    print(f"  tecla: {name}   (code={event.code})   dispositivo: {dev.path} — {dev.name}")
-                    print(f'\n  → pon en ~/.config/kwhisper/config.toml:  key = "{name}"\n')
+                    print(t("findkey.key_line", name=name, code=event.code,
+                            path=dev.path, dev=dev.name))
+                    print(t("findkey.config_hint", name=name))
     except KeyboardInterrupt:
-        print("\nFin.")
+        print(t("findkey.done"))
         return 0
 
 
