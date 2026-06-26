@@ -208,6 +208,89 @@ def test_command_key_resolution():
     assert ecodes.ecodes[_KEY_ALIASES["ctrl"]] == ecodes.ecodes["KEY_LEFTCTRL"]
 
 
+def test_name_score_ranks_name_above_generic():
+    from kwhisper.commands import _GENERIC_WEIGHTS, _NAME_WEIGHTS, _name_score
+    # Exact brand name is the strongest signal.
+    assert _name_score("KCalc", "kcalc", "kcalc", _NAME_WEIGHTS) == 100
+    # Generic exact/prefix score lower but still clear the 60 threshold.
+    assert _name_score("Calculadora", "calculadora", "calculadora", _GENERIC_WEIGHTS) == 75
+    assert _name_score("Calculadora científica", "calculadora", "calculadora",
+                       _GENERIC_WEIGHTS) == 65
+    # No relation → 0.
+    assert _name_score("Firefox", "kcalc", "kcalc", _NAME_WEIGHTS) == 0
+
+
+def test_resolve_desktop_matches_generic_name(tmp_path, monkeypatch):
+    from kwhisper import commands
+    appdir = tmp_path / "applications"
+    appdir.mkdir()
+    (appdir / "org.kde.kcalc.desktop").write_text(
+        "[Desktop Entry]\nType=Application\nName=KCalc\nName[es]=KCalc\n"
+        "GenericName=Scientific Calculator\nGenericName[es]=Calculadora científica\n"
+        "Exec=kcalc\n", encoding="utf-8")
+    monkeypatch.setattr(commands, "_app_dirs", lambda: [appdir])
+    # Brand name resolves (exact Name).
+    assert commands._resolve_desktop("kcalc")[0] == "org.kde.kcalc"
+    # The generic Spanish word now resolves too, via GenericName[es] prefix.
+    assert commands._resolve_desktop("calculadora")[0] == "org.kde.kcalc"
+    # An unrelated word still resolves to nothing.
+    assert commands._resolve_desktop("zzqxnotreal") is None
+
+
+def test_close_app_respects_whitelist():
+    # allow_close=False must short-circuit before touching any process.
+    from kwhisper import i18n
+    from kwhisper.commands import CommandExecutor
+    from kwhisper.config import CommandsConfig
+
+    ex = CommandExecutor(CommandsConfig(allow_close=False))
+    assert ex._close_app("firefox") == i18n.t("cmd.close_disabled")
+
+
+def test_close_names_includes_raw_candidates():
+    # The raw spoken name always yields process-name candidates, regardless of
+    # whether the app is installed (so multi-word names still match a binary).
+    from kwhisper.commands import CommandExecutor
+    from kwhisper.config import CommandsConfig
+
+    names = CommandExecutor(CommandsConfig())._close_names("Firefox Web")
+    assert {"firefox web", "firefox-web", "firefox_web", "firefoxweb"} <= names
+
+
+def test_close_app_unknown_reports_not_running():
+    # A name that matches no running process returns the "not running" message
+    # (exercises _close_names + _matching_pids without signalling anything).
+    from kwhisper import i18n
+    from kwhisper.commands import CommandExecutor
+    from kwhisper.config import CommandsConfig
+
+    ex = CommandExecutor(CommandsConfig(allow_close=True))
+    bogus = "zzqxnotreal"
+    assert ex._close_app(bogus) == i18n.t("cmd.app_not_running", app=bogus)
+
+
+def test_matching_pids_detects_child():
+    # _matching_pids reads /proc; verify it spots a child by its comm and never
+    # returns our own PID. We terminate the child ourselves (no SIGTERM by name).
+    import subprocess
+
+    from kwhisper.commands import _matching_pids
+
+    if not Path("/proc").is_dir():
+        return  # non-Linux: /proc scanning is unavailable
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        comm = Path(f"/proc/{proc.pid}/comm").read_text().strip()
+        assert proc.pid in _matching_pids({comm})
+        # Unrelated name matches nothing; our own PID is always excluded.
+        import os
+        assert os.getpid() not in _matching_pids({comm})
+        assert proc.pid not in _matching_pids({"kwhisper-nope-xyz"})
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

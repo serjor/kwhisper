@@ -88,6 +88,7 @@ class UIConfig(BaseModel):
 class CommandsConfig(BaseModel):
     enabled: bool = True
     allow_launch: bool = True
+    allow_close: bool = True
 
 
 class Config(BaseModel):
@@ -162,6 +163,7 @@ lang = "auto"             # UI/CLI language: "auto" (from locale) | "es" | "en"
 #         executed; requires [llm].enabled = true.
 enabled = true
 allow_launch = true        # allow "abre <app>"
+allow_close = true         # allow "cierra <app>" (sends SIGTERM by process name)
 """
 
 
