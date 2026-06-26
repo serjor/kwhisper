@@ -97,6 +97,26 @@ def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
         runtime.rmdir()
 
 
+def test_i18n_lookup_and_fallback():
+    # Translation, interpolation and fallback to English for unknown languages.
+    from kwhisper import i18n
+    i18n.set_language("es")
+    assert i18n.t("ready") == "Listo para dictar."
+    assert i18n.t("cmd.opening", app="firefox") == "Abriendo firefox"
+    i18n.set_language("en")
+    assert i18n.t("ready") == "Ready to dictate."
+    i18n.set_language("xx")  # unknown → English fallback
+    assert i18n.get_language() == "en"
+    # Missing key returns the key itself (never raises).
+    assert i18n.t("nope.not.here") == "nope.not.here"
+
+
+def test_i18n_catalogs_have_same_keys():
+    # Both languages must define exactly the same set of keys (no gaps).
+    from kwhisper.i18n import _CATALOG
+    assert set(_CATALOG["en"]) == set(_CATALOG["es"])
+
+
 def test_command_key_resolution():
     # Resolution of friendly keys → evdev keycodes (needs python-evdev).
     try:

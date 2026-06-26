@@ -52,4 +52,4 @@ class Feedback:
             if self._paplay and os.path.exists(path):
                 self._spawn([self._paplay, path])
         except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo reproducir sonido %s: %s", event, exc)
+            log.debug("Could not play sound %s: %s", event, exc)

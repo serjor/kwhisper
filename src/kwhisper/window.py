@@ -49,12 +49,12 @@ def ensure_session_bus() -> None:
         return
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if not runtime_dir:
-        log.debug("XDG_RUNTIME_DIR no definido; no se puede derivar el bus de sesión.")
+        log.debug("XDG_RUNTIME_DIR not set; cannot derive the session bus.")
         return
     sock = os.path.join(runtime_dir, "bus")
     if os.path.exists(sock):
         os.environ["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={sock}"
-        log.debug("DBUS_SESSION_BUS_ADDRESS no estaba definido; usando %s", sock)
+        log.debug("DBUS_SESSION_BUS_ADDRESS was not set; using %s", sock)
 
 
 def _build_script(nonce: str) -> str:
@@ -84,7 +84,7 @@ class WindowDetector:
             return "kdotool"
         if self._gdbus and self._journalctl and not self._kwin_failed:
             return "kwin-dbus"
-        return "ninguno"
+        return "none"
 
     def active_class(self) -> str:
         """Class (resourceClass) of the focused window, lowercased, or ""."""
@@ -109,7 +109,7 @@ class WindowDetector:
                                  capture_output=True, text=True, timeout=2).stdout.strip()
             return cls.lower()
         except Exception as exc:  # noqa: BLE001
-            log.debug("kdotool falló: %s", exc)
+            log.debug("kdotool failed: %s", exc)
             return None
 
     # --- KWin D-Bus backend (no AUR) ---
@@ -122,7 +122,7 @@ class WindowDetector:
         # up running someone else's JS in your session.
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
         if not runtime_dir:
-            log.debug("XDG_RUNTIME_DIR no definido; no se carga el script de KWin.")
+            log.debug("XDG_RUNTIME_DIR not set; not loading the KWin script.")
             return None
         try:
             path = os.path.join(runtime_dir, "kwhisper-activewindow.js")
@@ -140,11 +140,11 @@ class WindowDetector:
                                  capture_output=True, text=True, timeout=3)
             m = re.search(r"-?\d+", out.stdout)
             if not m or int(m.group()) < 0:
-                log.debug("loadScript no devolvió id válido: %r", out.stdout)
+                log.debug("loadScript did not return a valid id: %r", out.stdout)
                 return None
             return int(m.group())
         except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo cargar el script de KWin: %s", exc)
+            log.debug("Could not load the KWin script: %s", exc)
             return None
 
     def _via_kwin(self) -> str | None:
@@ -160,7 +160,7 @@ class WindowDetector:
                             "--method", "org.kde.kwin.Script.run"],
                            capture_output=True, timeout=3)
         except Exception as exc:  # noqa: BLE001
-            log.debug("run() del script KWin falló: %s", exc)
+            log.debug("KWin script run() failed: %s", exc)
             self._note_fail()
             return None
         # The print reaches the journal with a small delay: poll briefly.
@@ -177,8 +177,8 @@ class WindowDetector:
         self._kwin_misses += 1
         if self._kwin_misses >= 3:
             self._kwin_failed = True
-            log.warning("Detección de terminal por KWin desactivada tras varios "
-                        "fallos; se usará el atajo de pegado por defecto.")
+            log.warning("KWin terminal detection disabled after several "
+                        "failures; the default paste shortcut will be used.")
 
     def _read_journal(self, since: str, nonce: str) -> str | None:
         try:

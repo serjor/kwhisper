@@ -23,6 +23,7 @@ import threading
 import time
 
 from .config import InjectConfig
+from .i18n import t
 from .window import WindowDetector
 
 log = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def _paste_args(combo: str) -> list[str]:
     codes = []
     for p in parts:
         if p not in _KEYCODES:
-            raise InjectionError(f"Tecla desconocida en combinación de pegado: {p!r}")
+            raise InjectionError(t("inject.unknown_paste_key", key=repr(p)))
         codes.append(_KEYCODES[p])
     seq = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
     return seq
@@ -77,10 +78,10 @@ def _pick_clipboard_type(types_text: str) -> str:
     is no plain text, it falls back to the first offered type, to preserve images
     or other non-textual content.
     """
-    types = [t.strip() for t in types_text.splitlines() if t.strip()]
-    for t in types:
-        if t.lower().startswith("text/plain"):
-            return t
+    types = [ty.strip() for ty in types_text.splitlines() if ty.strip()]
+    for ty in types:
+        if ty.lower().startswith("text/plain"):
+            return ty
     return types[0] if types else ""
 
 
@@ -96,7 +97,7 @@ class TextInjector:
         # clipboard is back.
         self._inject_lock = threading.Lock()
         if cfg.method == "clipboard" and not (self._have_ydotool and self._have_wlcopy):
-            log.error("Faltan herramientas: ydotool=%s wl-copy=%s (instala con pacman)",
+            log.error("Missing tools: ydotool=%s wl-copy=%s (install with pacman)",
                       self._have_ydotool, self._have_wlcopy)
 
     def _is_terminal(self) -> bool:
@@ -127,10 +128,7 @@ class TextInjector:
         lock_transferred = False
         try:
             if not (self._have_ydotool and self._have_wlcopy):
-                raise InjectionError(
-                    "Inyección por portapapeles requiere 'ydotool' y 'wl-copy'. "
-                    "Instala: sudo pacman -S ydotool wl-clipboard"
-                )
+                raise InjectionError(t("inject.clipboard_requires"))
             env = _ydotool_env()
             # Detect the terminal BEFORE touching the clipboard (the focused
             # window is now the target one; the overlay does not steal focus).
@@ -144,7 +142,7 @@ class TextInjector:
                 time.sleep(0.03)  # margin for the clipboard to propagate
                 subprocess.run(["ydotool", "key", *seq], check=True, env=env)
             except subprocess.CalledProcessError as exc:
-                paste_error = InjectionError(f"Fallo al pegar: {exc}")
+                paste_error = InjectionError(t("inject.paste_failed", error=exc))
             except Exception as exc:  # noqa: BLE001  (e.g. invalid key in combo)
                 paste_error = exc
 
@@ -157,13 +155,13 @@ class TextInjector:
                 # thread fails (e.g. RuntimeError when threads are exhausted), we
                 # restore inline and let the finally release the lock (without
                 # transferring it).
-                t = threading.Thread(target=self._delayed_restore, args=(prev,),
-                                     name="clip-restore", daemon=True)
+                restore_thread = threading.Thread(target=self._delayed_restore, args=(prev,),
+                                                  name="clip-restore", daemon=True)
                 try:
-                    t.start()
+                    restore_thread.start()
                 except Exception:  # noqa: BLE001
-                    log.warning("No se pudo lanzar el hilo de restauración; "
-                                "restaurando el portapapeles en línea.")
+                    log.warning("Could not start the restore thread; "
+                                "restoring the clipboard inline.")
                     self._restore_clipboard(prev)
                 else:
                     lock_transferred = True
@@ -201,7 +199,7 @@ class TextInjector:
             subprocess.run(["dotool"], input=script.encode("utf-8"),
                            check=True, env=env)
         except subprocess.CalledProcessError as exc:
-            raise InjectionError(f"dotool falló: {exc}") from exc
+            raise InjectionError(t("inject.dotool_failed", error=exc)) from exc
 
     # --- clipboard ---
     def _save_clipboard(self) -> tuple[bytes | None, str | None, bool]:
@@ -220,8 +218,8 @@ class TextInjector:
                 return (None, None, True)  # empty clipboard (confirmed)
             return (out.stdout, mime or None, True)
         except (subprocess.TimeoutExpired, OSError) as exc:
-            log.warning("No se pudo leer el portapapeles (%s); no se restaurará "
-                        "para no perder su contenido.", exc)
+            log.warning("Could not read the clipboard (%s); it will not be restored "
+                        "to avoid losing its contents.", exc)
             return (None, None, False)
 
     def _restore_clipboard(self, saved: tuple[bytes | None, str | None, bool]) -> None:
@@ -235,4 +233,4 @@ class TextInjector:
             else:
                 subprocess.run(["wl-copy", "--clear"], check=False)
         except Exception as exc:  # noqa: BLE001
-            log.debug("No se pudo restaurar el portapapeles: %s", exc)
+            log.debug("Could not restore the clipboard: %s", exc)

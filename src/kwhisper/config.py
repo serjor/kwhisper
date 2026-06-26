@@ -78,6 +78,8 @@ class UIConfig(BaseModel):
     overlay: bool = True
     sounds: bool = True
     notifications: bool = True
+    # UI/CLI language: "auto" detects it from the locale; "es"/"en" force it.
+    lang: Literal["auto", "es", "en"] = "auto"
 
 
 class CommandsConfig(BaseModel):
@@ -145,6 +147,7 @@ detect_terminal = true     # Ctrl+Shift+V in terminals (via kdotool or KWin D-Bu
 overlay = true
 sounds = true
 notifications = true
+lang = "auto"             # UI/CLI language: "auto" (from locale) | "es" | "en"
 
 [commands]
 # false = commands are never executed (but if [llm].enabled it still fixes
@@ -169,10 +172,10 @@ def load_config() -> Config:
         with CONFIG_PATH.open("rb") as fh:
             data = tomllib.load(fh)
     except tomllib.TOMLDecodeError as exc:
-        log.error("config.toml mal formado (%s): %s", CONFIG_PATH, exc)
+        log.error("Malformed config.toml (%s): %s", CONFIG_PATH, exc)
         raise SystemExit(1) from exc
     try:
         return Config.model_validate(data)
     except ValidationError as exc:
-        log.error("Valor inválido en %s:\n%s", CONFIG_PATH, exc)
+        log.error("Invalid value in %s:\n%s", CONFIG_PATH, exc)
         raise SystemExit(1) from exc

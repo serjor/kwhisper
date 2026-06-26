@@ -18,6 +18,8 @@ import selectors
 import threading
 from collections.abc import Callable
 
+from ..i18n import t
+
 log = logging.getLogger(__name__)
 
 
@@ -41,10 +43,7 @@ class EvdevListener:
         from evdev import ecodes
         code = ecodes.ecodes.get(self.key_name)
         if code is None:
-            raise ValueError(
-                f"Tecla desconocida: {self.key_name!r}. Usa `kwhisper-findkey` "
-                f"para descubrir el nombre correcto (p.ej. KEY_PAUSE)."
-            )
+            raise ValueError(t("hotkey.unknown_key", key=repr(self.key_name)))
         return code
 
     def _open_devices(self):
@@ -60,11 +59,7 @@ class EvdevListener:
             try:
                 dev = evdev.InputDevice(p)
             except PermissionError as exc:
-                raise HotkeyPermissionError(
-                    "Sin permiso para leer /dev/input. Añádete al grupo input:\n"
-                    "  sudo usermod -aG input $USER   (y vuelve a iniciar sesión)\n"
-                    "O usa el fallback del portal:  [hotkey] backend = \"portal\""
-                ) from exc
+                raise HotkeyPermissionError(t("hotkey.no_input_permission")) from exc
             caps = dev.capabilities()
             keys = caps.get(ecodes.EV_KEY, [])
             # Monitor the keyboards that report our key (or all of them if going by device_path).
@@ -73,11 +68,8 @@ class EvdevListener:
             else:
                 dev.close()
         if not devices:
-            raise HotkeyPermissionError(
-                f"Ningún dispositivo expone la tecla {self.key_name}. "
-                f"Comprueba con `kwhisper-findkey` o fija [hotkey] device."
-            )
-        log.info("Escuchando %d dispositivo(s) para la tecla %s",
+            raise HotkeyPermissionError(t("hotkey.no_device", key=self.key_name))
+        log.info("Listening on %d device(s) for key %s",
                  len(devices), self.key_name)
         return devices
 
@@ -130,7 +122,7 @@ class EvdevListener:
             pass
         if dev in devices:
             devices.remove(dev)
-        log.warning("Teclado desconectado: %s", getattr(dev, "path", "?"))
+        log.warning("Keyboard disconnected: %s", getattr(dev, "path", "?"))
 
     def _reconnect(self, sel) -> list:  # noqa: ANN001
         """Reopen devices with backoff after a USB disconnect."""
@@ -145,7 +137,7 @@ class EvdevListener:
                 continue
             for d in devices:
                 sel.register(d, selectors.EVENT_READ)
-            log.info("Teclado reconectado (%d dispositivo/s).", len(devices))
+            log.info("Keyboard reconnected (%d device/s).", len(devices))
             return devices
         return []
 
@@ -154,7 +146,7 @@ class EvdevListener:
         try:
             fn()
         except Exception:  # noqa: BLE001
-            log.exception("Error en callback de hotkey")
+            log.exception("Error in hotkey callback")
 
     def start(self) -> None:
         # Resolve the key and open the devices SYNCHRONOUSLY: this way a

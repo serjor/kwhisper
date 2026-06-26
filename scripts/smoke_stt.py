@@ -21,9 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 def main() -> int:
     seconds = float(sys.argv[1]) if len(sys.argv) > 1 else 4.0
     from kwhisper.config import load_config
+    from kwhisper.i18n import set_language, t
     from kwhisper.stt import STTEngine, ensure_cuda_lib_path
 
     cfg = load_config()
+    set_language(cfg.ui.lang)
     # Same as the daemon: mount cuBLAS/cuDNN from the wheels into LD_LIBRARY_PATH
     # (re-exec) BEFORE loading the model; otherwise CUDA can't find libcublas.
     if cfg.stt.device == "cuda":
@@ -31,22 +33,22 @@ def main() -> int:
 
     from kwhisper.audio import AudioRecorder
 
-    print(f"Cargando modelo '{cfg.stt.model}' ({cfg.stt.compute_type}) en {cfg.stt.device}…")
+    print(t("smoke.loading", model=cfg.stt.model, compute=cfg.stt.compute_type, device=cfg.stt.device))
     stt = STTEngine(cfg.stt)
     t0 = time.monotonic()
     stt.load()
-    print(f"Modelo listo en {time.monotonic() - t0:.1f}s.\n")
+    print(t("smoke.model_ready", secs=time.monotonic() - t0))
 
     rec = AudioRecorder(cfg.audio.samplerate, cfg.audio.channels, cfg.audio.device)
-    print(f"🎙  Habla durante {seconds:.0f} s…")
+    print(t("smoke.speak", seconds=seconds))
     rec.start()
     time.sleep(seconds)
     audio = rec.stop()
-    print(f"Grabados {rec.duration(audio):.1f}s. Transcribiendo…\n")
+    print(t("smoke.recorded", secs=rec.duration(audio)))
 
     t1 = time.monotonic()
     text = stt.transcribe(audio)
-    print(f"⏱  Transcripción en {time.monotonic() - t1:.2f}s")
+    print(t("smoke.transcribed_in", secs=time.monotonic() - t1))
     print(f"📝  {text!r}")
     return 0
 

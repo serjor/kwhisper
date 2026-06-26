@@ -23,6 +23,7 @@ import threading
 import time
 
 from .config import CONFIG_PATH, Config, load_config
+from .i18n import set_language, t
 
 log = logging.getLogger("kwhisper")
 
@@ -123,16 +124,15 @@ class KWhisper:
                 return
             except HotkeyPermissionError as exc:
                 log.error("%s", exc)
-                self.ctrl.notify.emit("kwhisper", "Sin permiso de teclado (grupo input). "
-                                                  "Mira los logs o usa backend=portal.")
+                self.ctrl.notify.emit("kwhisper", t("hotkey.no_permission_short"))
                 return
             except ValueError as exc:  # unknown key in config
                 log.error("%s", exc)
                 self.ctrl.notify.emit("kwhisper", str(exc))
                 return
             except Exception as exc:  # noqa: BLE001
-                log.exception("No se pudo iniciar el hotkey evdev: %s", exc)
-                self.ctrl.notify.emit("kwhisper", "No se pudo iniciar el hotkey. Revisa los logs.")
+                log.exception("Could not start the evdev hotkey: %s", exc)
+                self.ctrl.notify.emit("kwhisper", t("hotkey.start_failed"))
                 return
         self._listener.start()
 
@@ -143,11 +143,11 @@ class KWhisper:
                 self.stt.load()
                 self.stt_ready.set()
                 self.ctrl.state.emit("idle")
-                self.ctrl.notify.emit("kwhisper", "Listo para dictar.")
+                self.ctrl.notify.emit("kwhisper", t("ready"))
             except Exception as exc:  # noqa: BLE001
-                log.exception("Fallo cargando el modelo STT")
+                log.exception("Failed to load the STT model")
                 self.ctrl.state.emit("error")
-                self.ctrl.notify.emit("kwhisper", f"Error cargando STT: {exc}")
+                self.ctrl.notify.emit("kwhisper", t("stt.load_error", error=exc))
         threading.Thread(target=_load, name="stt-load", daemon=True).start()
 
     # ---------- hotkey callbacks (listener thread) ----------
@@ -164,11 +164,11 @@ class KWhisper:
         except Exception as exc:  # noqa: BLE001
             with self._lock:
                 self._recording = False
-            log.exception("No se pudo iniciar la grabación")
-            self.ctrl.notify.emit("kwhisper", f"Error de micrófono: {exc}")
+            log.exception("Could not start recording")
+            self.ctrl.notify.emit("kwhisper", t("mic.error", error=exc))
             return False
         self.feedback.play("start")
-        self.ctrl.overlay.emit("recording", "🎙  Grabando…")
+        self.ctrl.overlay.emit("recording", t("overlay.recording"))
         self.ctrl.state.emit("recording")
         return True
 
@@ -182,7 +182,7 @@ class KWhisper:
             self._processing = True
         audio = self.recorder.stop()
         self.feedback.play("stop")
-        self.ctrl.overlay.emit("processing", "⏳  Procesando…")
+        self.ctrl.overlay.emit("processing", t("overlay.processing"))
         self.ctrl.state.emit("processing")
         threading.Thread(target=self._process, args=(audio,),
                          name="kwhisper-process", daemon=True).start()
@@ -193,14 +193,14 @@ class KWhisper:
         try:
             dur = self.recorder.duration(audio)
             if dur < 0.25:
-                self.ctrl.notify.emit("kwhisper", "Grabación demasiado corta.")
+                self.ctrl.notify.emit("kwhisper", t("recording.too_short"))
                 return
             if not self.stt_ready.wait(timeout=30):
-                self.ctrl.notify.emit("kwhisper", "El modelo aún se está cargando.")
+                self.ctrl.notify.emit("kwhisper", t("model.loading"))
                 return
             text = self.stt.transcribe(audio)
             if not text:
-                self.ctrl.notify.emit("kwhisper", "No se detectó voz.")
+                self.ctrl.notify.emit("kwhisper", t("no_speech"))
                 return
 
             # With the LLM active (router != None) we ALWAYS classify: that way
@@ -216,7 +216,7 @@ class KWhisper:
             # is dictation, or a command with execution disabled) text is written.
             if intent.tipo == "comando" and self.cfg.commands.enabled:
                 msg = self.executor.execute(intent)
-                self.ctrl.notify.emit("Comando", msg)
+                self.ctrl.notify.emit(t("notify.command"), msg)
             else:
                 # Hide the overlay BEFORE injecting so it does not keep the
                 # keyboard focus under KWin Wayland (otherwise the Ctrl+Shift+V
@@ -224,9 +224,9 @@ class KWhisper:
                 self._hide_overlay_before_inject()
                 self.injector.inject(intent.texto or text)
         except Exception as exc:  # noqa: BLE001
-            log.exception("Error en el pipeline")
-            self.ctrl.overlay.emit("error", "⚠  Error")
-            self.ctrl.notify.emit("kwhisper", f"Error: {exc}")
+            log.exception("Pipeline error")
+            self.ctrl.overlay.emit("error", t("overlay.error"))
+            self.ctrl.notify.emit("kwhisper", t("error.generic", error=exc))
         finally:
             # Emit the UI state BEFORE releasing the guard: while
             # _processing stays True, _on_start cannot start a new recording,
@@ -243,7 +243,7 @@ class KWhisper:
         # Explicit feedback: without this the only hint is the tray icon (which
         # depends on the theme) and it looks like the checkbox does nothing.
         self.ctrl.notify.emit("kwhisper",
-                              "Dictado activado" if checked else "Dictado desactivado")
+                              t("dictation.on") if checked else t("dictation.off"))
 
     def _on_open_config(self) -> None:
         try:
@@ -253,7 +253,7 @@ class KWhisper:
                 ["xdg-open", str(CONFIG_PATH)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:  # noqa: BLE001
-            log.exception("No se pudo abrir la config")
+            log.exception("Could not open the config")
 
     def _on_quit(self) -> None:
         from PySide6.QtWidgets import QApplication
@@ -273,6 +273,7 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     cfg = load_config()
+    set_language(cfg.ui.lang)
     # Under systemd --user the session bus may not be in the environment: without it
     # terminal detection (KWin/gdbus) fails and it pastes with Ctrl+V in konsole.
     from .window import ensure_session_bus
@@ -300,7 +301,7 @@ def main() -> int:
     #  2) a periodic no-op QTimer returns control to the interpreter so the
     #     signal is handled and the queued quit wakes up the event loop.
     def _signal_shutdown(signum, _frame):  # noqa: ANN001
-        log.info("Señal %s recibida; cerrando kwhisper.", signal.Signals(signum).name)
+        log.info("Signal %s received; shutting down kwhisper.", signal.Signals(signum).name)
         app._on_quit()
 
     signal.signal(signal.SIGINT, _signal_shutdown)
@@ -310,7 +311,7 @@ def main() -> int:
     wake_timer.timeout.connect(lambda: None)  # yields control to the Python interpreter
     wake_timer.start(200)
 
-    log.info("kwhisper en marcha. Backend hotkey=%s, tecla=%s",
+    log.info("kwhisper running. Hotkey backend=%s, key=%s",
              cfg.hotkey.backend, cfg.hotkey.key)
     return qapp.exec()
 

@@ -68,7 +68,7 @@ class AudioRecorder:
             blocksize=0,  # let PortAudio choose the optimal size
         )
         self._stream.start()
-        log.debug("Grabación iniciada (%d Hz, %d canal/es)", self.samplerate, self.channels)
+        log.debug("Recording started (%d Hz, %d channel/s)", self.samplerate, self.channels)
 
     def stop(self) -> np.ndarray:
         """Close the stream and return the audio as normalized float32 mono."""

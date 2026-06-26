@@ -60,7 +60,7 @@ class STTEngine:
 
         t0 = time.monotonic()
         log.info(
-            "Cargando modelo STT '%s' (%s, %s)…",
+            "Loading STT model '%s' (%s, %s)…",
             self.cfg.model, self.cfg.device, self.cfg.compute_type,
         )
         self._model = WhisperModel(
@@ -68,9 +68,9 @@ class STTEngine:
             device=self.cfg.device,
             compute_type=self.cfg.compute_type,
         )
-        log.info("Modelo cargado en %.1fs. Calentando…", time.monotonic() - t0)
+        log.info("Model loaded in %.1fs. Warming up…", time.monotonic() - t0)
         self._warmup()
-        log.info("STT listo (warm-up total %.1fs).", time.monotonic() - t0)
+        log.info("STT ready (total warm-up %.1fs).", time.monotonic() - t0)
 
     def _warmup(self) -> None:
         # 1 s of silence: forces the JIT-PTX compilation the first time.
@@ -80,11 +80,11 @@ class STTEngine:
             for _ in segments:
                 pass
         except Exception as exc:  # noqa: BLE001
-            log.warning("Warm-up falló (no crítico): %s", exc)
+            log.warning("Warm-up failed (non-critical): %s", exc)
 
     def transcribe(self, audio: np.ndarray) -> str:
         if self._model is None:
-            raise RuntimeError("STTEngine.load() no fue llamado")
+            raise RuntimeError("STTEngine.load() was not called")
         if audio.size == 0:
             return ""
         t0 = time.monotonic()
@@ -99,7 +99,7 @@ class STTEngine:
         # Whisper sometimes leaves double spaces when joining segments.
         text = " ".join(text.split())
         log.info(
-            "Transcrito en %.2fs (idioma=%s, %d chars): %r",
+            "Transcribed in %.2fs (language=%s, %d chars): %r",
             time.monotonic() - t0, getattr(info, "language", "?"), len(text), text[:80],
         )
         return text

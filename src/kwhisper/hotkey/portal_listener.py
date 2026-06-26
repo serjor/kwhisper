@@ -20,6 +20,8 @@ import logging
 import threading
 from collections.abc import Callable
 
+from ..i18n import t
+
 log = logging.getLogger(__name__)
 
 _PORTAL = "org.freedesktop.portal.Desktop"
@@ -93,7 +95,7 @@ class PortalListener:
             elif self.on_start():
                 self._recording = True
         except Exception:  # noqa: BLE001
-            log.exception("Error en toggle del portal")
+            log.exception("Error in portal toggle")
 
     def _fail(self, msg: str) -> None:
         log.error(msg)
@@ -144,20 +146,19 @@ class PortalListener:
         try:
             await asyncio.wait_for(done.wait(), timeout=15)
         except asyncio.TimeoutError:
-            self._fail("El portal de atajos no respondió (timeout). "
-                       "¿xdg-desktop-portal-kde activo? El hotkey no funcionará.")
+            self._fail(t("portal.no_response"))
             return
 
         sh = session_handle["value"]
         if not sh:
-            self._fail("El portal no devolvió session_handle; el hotkey no funcionará.")
+            self._fail(t("portal.no_session"))
             return
 
         # BindShortcuts: registers the shortcut (the user assigns the key in Settings).
         # Note: dbus-next represents D-Bus STRUCTs as a LIST, not a tuple.
         await gs.call_bind_shortcuts(
             sh,
-            [[_SHORTCUT_ID, {"description": Variant("s", "kwhisper: dictar (toggle)")}]],
+            [[_SHORTCUT_ID, {"description": Variant("s", t("portal.shortcut_desc"))}]],
             "",
             {},
         )
@@ -167,8 +168,8 @@ class PortalListener:
                 self._toggle()
 
         gs.on_activated(on_activated)
-        log.info("Portal GlobalShortcuts listo. Asigna la tecla en "
-                 "Preferencias del Sistema → Atajos → kwhisper.")
+        log.info("Portal GlobalShortcuts ready. Assign the key in "
+                 "System Settings → Shortcuts → kwhisper.")
 
     def _run(self) -> None:
         self._loop = asyncio.new_event_loop()
@@ -177,7 +178,7 @@ class PortalListener:
             self._loop.run_until_complete(self._setup())
             self._loop.run_forever()
         except Exception:  # noqa: BLE001
-            log.exception("Fallo en el listener del portal")
+            log.exception("Portal listener failure")
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="portal-hotkey", daemon=True)

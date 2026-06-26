@@ -132,6 +132,8 @@ editing: `systemctl --user restart kwhisper`. Useful keys:
   dictation still benefits from the LLM's punctuation correction.
 - `[inject] method` — `"clipboard"` (recommended) or `"dotool"`.
 - `[commands] allow_launch` — allow opening applications by voice.
+- `[ui] lang` — language of the interface (overlay, notifications, tray) and the
+  CLI tools: `"auto"` (detect from the system locale), `"es"` or `"en"`.
 
 ## Troubleshooting
 

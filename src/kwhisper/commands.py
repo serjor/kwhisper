@@ -20,6 +20,7 @@ import shutil
 import subprocess
 
 from .config import CommandsConfig
+from .i18n import t
 from .llm import Intent
 
 log = logging.getLogger(__name__)
@@ -57,48 +58,48 @@ class CommandExecutor:
             return self._open_app(intent.argumento)
         if intent.accion == "pulsar_tecla":
             return self._press_key(intent.argumento)
-        return "Sin acción."
+        return t("cmd.no_action")
 
     def _open_app(self, name: str) -> str:
         name = (name or "").strip()
         if not name:
-            return "Comando 'abrir' sin aplicación."
+            return t("cmd.open_no_app")
         if not self.cfg.allow_launch:
-            return "Lanzar aplicaciones está desactivado en la config."
+            return t("cmd.launch_disabled")
         # Only the first token: we launch the binary WITHOUT extra arguments that
         # the transcription could sneak in (e.g. dangerous flags to a binary).
         binary = name.split()[0]
         try:
             if shutil.which(binary):
                 self._spawn([binary])
-                return f"Abriendo {binary}"
+                return t("cmd.opening", app=binary)
             # Fallback: launcher via .desktop (KDE/GTK).
             if shutil.which("kstart"):
                 self._spawn(["kstart", binary])
-                return f"Abriendo {binary} (kstart)"
+                return t("cmd.opening_via", app=binary, via="kstart")
             if shutil.which("gtk-launch"):
                 self._spawn(["gtk-launch", binary])
-                return f"Abriendo {binary} (gtk-launch)"
-            return f"No encuentro la aplicación '{binary}'."
+                return t("cmd.opening_via", app=binary, via="gtk-launch")
+            return t("cmd.app_not_found", app=binary)
         except Exception as exc:  # noqa: BLE001
-            log.exception("Fallo al abrir %s", name)
-            return f"Error al abrir {name}: {exc}"
+            log.exception("Failed to open %s", name)
+            return t("cmd.open_error", app=name, error=exc)
 
     def _press_key(self, combo: str) -> str:
         combo = (combo or "").strip()
         if not combo:
-            return "Comando 'pulsar' sin tecla."
+            return t("cmd.press_no_key")
         try:
             from evdev import ecodes
         except ImportError:
-            return "python-evdev no disponible para resolver teclas."
-        tokens = [t for t in combo.replace(" ", "").lower().split("+") if t]
+            return t("cmd.no_evdev")
+        tokens = [tok for tok in combo.replace(" ", "").lower().split("+") if tok]
         codes: list[int] = []
-        for t in tokens:
-            key_name = _KEY_ALIASES.get(t, f"KEY_{t.upper()}")
+        for tok in tokens:
+            key_name = _KEY_ALIASES.get(tok, f"KEY_{tok.upper()}")
             code = ecodes.ecodes.get(key_name)
             if code is None:
-                return f"Tecla desconocida: {t!r}"
+                return t("cmd.unknown_key", key=repr(tok))
             codes.append(code)
         seq = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
         env = dict(os.environ)
@@ -106,8 +107,8 @@ class CommandExecutor:
         try:
             subprocess.run(["ydotool", "key", *seq], check=True, env=env,
                            capture_output=True)
-            return f"Pulsado {combo}"
+            return t("cmd.pressed", combo=combo)
         except subprocess.CalledProcessError as exc:
-            return f"Fallo al pulsar {combo}: {exc}"
+            return t("cmd.press_failed", combo=combo, error=exc)
         except FileNotFoundError:
-            return "ydotool no instalado."
+            return t("cmd.no_ydotool")

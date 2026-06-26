@@ -11,6 +11,8 @@ from collections.abc import Callable
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from .i18n import t
+
 # Theme icons by state (with a fallback if the theme does not provide them).
 _ICONS = {
     "idle": "audio-input-microphone",
@@ -19,13 +21,12 @@ _ICONS = {
     "error": "dialog-error",
     "disabled": "audio-input-microphone-muted",
 }
-_LABELS = {
-    "idle": "kwhisper: listo",
-    "recording": "kwhisper: grabando…",
-    "processing": "kwhisper: procesando…",
-    "error": "kwhisper: error",
-    "disabled": "kwhisper: desactivado",
-}
+
+
+def _label(state: str) -> str:
+    # Resolved at call time (not import time) so the language set after
+    # load_config() is already in effect.
+    return t(f"tray.{state}") if state in _ICONS else t("tray.idle")
 
 
 class Tray:
@@ -36,12 +37,12 @@ class Tray:
         self._tray.setToolTip("kwhisper")
 
         menu = QMenu()
-        self._status_action = QAction("kwhisper: listo")
+        self._status_action = QAction(_label("idle"))
         self._status_action.setEnabled(False)
         menu.addAction(self._status_action)
         menu.addSeparator()
 
-        self._enabled_action = QAction("Dictado activado")
+        self._enabled_action = QAction(t("dictation.on"))
         self._enabled_action.setCheckable(True)
         self._enabled_action.setChecked(True)
         # Dynamic label (text, does not depend on the theme icon) + external callback.
@@ -49,12 +50,12 @@ class Tray:
         self._enabled_action.toggled.connect(on_toggle_enabled)
         menu.addAction(self._enabled_action)
 
-        cfg_action = QAction("Editar configuración…")
+        cfg_action = QAction(t("tray.edit_config"))
         cfg_action.triggered.connect(on_open_config)
         menu.addAction(cfg_action)
 
         menu.addSeparator()
-        quit_action = QAction("Salir")
+        quit_action = QAction(t("tray.quit"))
         quit_action.triggered.connect(on_quit)
         menu.addAction(quit_action)
 
@@ -64,7 +65,7 @@ class Tray:
 
     def _on_enabled_toggled(self, checked: bool) -> None:
         # Explicit text in the menu: the user reads the state without relying on the icon.
-        self._enabled_action.setText("Dictado activado" if checked else "Dictado desactivado")
+        self._enabled_action.setText(t("dictation.on") if checked else t("dictation.off"))
 
     def set_state(self, state: str) -> None:
         icon_name = _ICONS.get(state, _ICONS["idle"])
@@ -75,8 +76,8 @@ class Tray:
             fallback = "dialog-cancel" if state == "disabled" else "audio-input-microphone"
             icon = QIcon.fromTheme(fallback)
         self._tray.setIcon(icon)
-        self._status_action.setText(_LABELS.get(state, _LABELS["idle"]))
-        self._tray.setToolTip(_LABELS.get(state, "kwhisper"))
+        self._status_action.setText(_label(state))
+        self._tray.setToolTip(_label(state) if state in _ICONS else "kwhisper")
 
     def notify(self, title: str, message: str,
                icon: QSystemTrayIcon.MessageIcon = QSystemTrayIcon.MessageIcon.Information) -> None:

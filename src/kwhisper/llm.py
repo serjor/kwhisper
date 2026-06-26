@@ -107,12 +107,12 @@ class IntentRouter:
             content = resp.json()["message"]["content"]
             intent = Intent.model_validate_json(content)
         except (httpx.HTTPError, KeyError, ValidationError, json.JSONDecodeError) as exc:
-            log.warning("Clasificación LLM falló (%s); fallback a dictado.", exc)
+            log.warning("LLM classification failed (%s); falling back to dictation.", exc)
             return fallback
         # Sanitization: if it says dictation but the text came back empty, use the transcription.
         if intent.tipo == "dictado" and not intent.texto.strip():
             intent.texto = transcription
-        log.info("Intención: tipo=%s accion=%s arg=%r", intent.tipo, intent.accion, intent.argumento)
+        log.info("Intent: tipo=%s accion=%s arg=%r", intent.tipo, intent.accion, intent.argumento)
         return intent
 
     def close(self) -> None:
