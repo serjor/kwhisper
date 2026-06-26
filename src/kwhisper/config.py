@@ -59,6 +59,9 @@ class LLMConfig(BaseModel):
     host: str = "http://127.0.0.1:11434"
     model: str = "gemma3"
     timeout: float = 8.0
+    # ADVANCED. Empty = use the built-in, tested system prompt (recommended).
+    # A custom value overrides it and can BREAK command/dictation classification.
+    system_prompt: str = ""
 
 
 class InjectConfig(BaseModel):
@@ -134,6 +137,10 @@ enabled = true
 host = "http://127.0.0.1:11434"
 model = "gemma3"
 timeout = 8.0
+# ADVANCED — leave empty ("") to use the built-in, tested prompt (recommended).
+# A custom prompt overrides it and can BREAK command classification and
+# dictation punctuation. The Settings dialog can restore the default for you.
+system_prompt = ""
 
 [inject]
 method = "clipboard"       # "clipboard" (recommended) | "dotool"
@@ -179,3 +186,53 @@ def load_config() -> Config:
     except ValidationError as exc:
         log.error("Invalid value in %s:\n%s", CONFIG_PATH, exc)
         raise SystemExit(1) from exc
+
+
+def save_settings(
+    *,
+    ui_lang: str | None = None,
+    llm_model: str | None = None,
+    llm_system_prompt: str | None = None,
+) -> None:
+    """Persist a subset of settings to ``config.toml`` (for the Settings UI).
+
+    Only the provided fields are written; every other value, and all the
+    explanatory comments in the file, are preserved (we round-trip the document
+    with ``tomlkit``). The write is atomic (temp file + ``os.replace``) so a
+    crash mid-save never leaves a truncated config.
+
+    This is intentionally limited to the keys the graphical dialog exposes
+    (UI language, Ollama model, system prompt); the rest stays file-only.
+    """
+    import os
+    import tempfile
+
+    import tomlkit
+
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    base = CONFIG_PATH.read_text(encoding="utf-8") if CONFIG_PATH.exists() else DEFAULT_TOML
+    doc = tomlkit.parse(base)
+
+    def _table(name: str):
+        if name not in doc:
+            doc[name] = tomlkit.table()
+        return doc[name]
+
+    if ui_lang is not None:
+        _table("ui")["lang"] = ui_lang
+    if llm_model is not None:
+        _table("llm")["model"] = llm_model
+    if llm_system_prompt is not None:
+        # Multiline TOML string (""" … """) when it spans lines, for readability.
+        _table("llm")["system_prompt"] = tomlkit.string(
+            llm_system_prompt, multiline="\n" in llm_system_prompt
+        )
+
+    fd, tmp = tempfile.mkstemp(dir=CONFIG_DIR, prefix=".config.", suffix=".toml.tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(tomlkit.dumps(doc))
+        os.replace(tmp, CONFIG_PATH)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise

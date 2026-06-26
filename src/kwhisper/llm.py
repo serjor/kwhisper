@@ -44,7 +44,10 @@ _FORMAT_SCHEMA = {
     "required": ["kind", "text", "action", "argument"],
 }
 
-_SYSTEM = """\
+# The built-in, tested system prompt. Used unless the user overrides it via
+# [llm].system_prompt (Settings → Advanced). Kept public so the Settings dialog
+# can prefill the editor with it and offer a "restore default" (rollback).
+DEFAULT_SYSTEM_PROMPT = """\
 Eres el clasificador de un dictado por voz en español. Recibes la transcripción \
 de lo que ha dicho el usuario y decides UNA de dos cosas:
 
@@ -83,7 +86,10 @@ class IntentRouter:
         self._client = httpx.Client(base_url=cfg.host, timeout=cfg.timeout)
 
     def _messages(self, transcription: str) -> list[dict]:
-        msgs: list[dict] = [{"role": "system", "content": _SYSTEM}]
+        # An empty/blank override falls back to the built-in prompt: a user who
+        # clears the field in the dialog gets the tested behaviour back.
+        system = (self.cfg.system_prompt or "").strip() or DEFAULT_SYSTEM_PROMPT
+        msgs: list[dict] = [{"role": "system", "content": system}]
         for user, out in _FEWSHOT:
             msgs.append({"role": "user", "content": user})
             msgs.append({"role": "assistant", "content": json.dumps(out, ensure_ascii=False)})
@@ -117,3 +123,33 @@ class IntentRouter:
 
     def close(self) -> None:
         self._client.close()
+
+
+def normalize_system_prompt(text: str) -> str:
+    """Normalize a system prompt coming from the Settings dialog.
+
+    Returns ``""`` when the text matches the built-in default (so the config
+    stores "use default", i.e. a clean rollback) or is blank; otherwise returns
+    the trimmed custom prompt.
+    """
+    stripped = (text or "").strip()
+    if not stripped or stripped == DEFAULT_SYSTEM_PROMPT.strip():
+        return ""
+    return stripped
+
+
+def list_models(host: str, timeout: float = 4.0) -> list[str]:
+    """Return the names of the models installed in Ollama (via ``/api/tags``).
+
+    Used by the Settings/wizard UI to offer a pick-list instead of asking the
+    user to type a model name. Returns an empty list if Ollama is unreachable
+    (the dialog then falls back to a free-text field).
+    """
+    try:
+        resp = httpx.get(f"{host.rstrip('/')}/api/tags", timeout=timeout)
+        resp.raise_for_status()
+        models = resp.json().get("models", [])
+        return sorted(m["name"] for m in models if isinstance(m, dict) and m.get("name"))
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
+        log.info("Could not list Ollama models from %s: %s", host, exc)
+        return []

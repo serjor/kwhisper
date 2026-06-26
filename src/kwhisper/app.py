@@ -73,7 +73,8 @@ class KWhisper:
         from .tray import Tray
 
         self.overlay = Overlay() if self.cfg.ui.overlay else None
-        self.tray = Tray(self._on_toggle_enabled, self._on_open_config, self._on_quit)
+        self.tray = Tray(self._on_toggle_enabled, self._on_open_settings,
+                         self._on_open_config, self._on_quit)
 
         self.ctrl.state.connect(self.tray.set_state)
         self.ctrl.notify.connect(self._do_notify)
@@ -245,6 +246,47 @@ class KWhisper:
         self.ctrl.notify.emit("kwhisper",
                               t("dictation.on") if checked else t("dictation.off"))
 
+    def _on_open_settings(self) -> None:
+        """Open the graphical Settings dialog (Qt thread) and apply the result."""
+        from PySide6.QtWidgets import QDialog
+
+        from .settings_dialog import SettingsDialog
+        dlg = SettingsDialog(self.cfg.ui, self.cfg.llm)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_settings(**dlg.values(), notify=True)
+
+    def run_first_run_wizard(self) -> None:
+        """Show the welcome wizard once (first launch) and apply its choices."""
+        from PySide6.QtWidgets import QDialog
+
+        from .wizard import WelcomeWizard
+        dlg = WelcomeWizard(self.cfg.ui, self.cfg.llm)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            vals = dlg.values()
+            self._apply_settings(ui_lang=vals["ui_lang"], llm_model=vals["llm_model"],
+                                 llm_system_prompt=self.cfg.llm.system_prompt, notify=False)
+
+    def _apply_settings(self, *, ui_lang: str, llm_model: str,
+                        llm_system_prompt: str, notify: bool) -> None:
+        """Persist the settings, then live-apply them (no daemon restart needed).
+
+        The IntentRouter shares this very ``cfg.llm`` object, so reassigning the
+        model and system prompt takes effect on the next classification without
+        rebuilding anything. A language change is re-rendered into the tray menu.
+        """
+        from .config import save_settings
+        save_settings(ui_lang=ui_lang, llm_model=llm_model,
+                      llm_system_prompt=llm_system_prompt)
+        lang_changed = ui_lang != self.cfg.ui.lang
+        self.cfg.ui.lang = ui_lang
+        self.cfg.llm.model = llm_model
+        self.cfg.llm.system_prompt = llm_system_prompt
+        if lang_changed:
+            set_language(ui_lang)
+            self.tray.retranslate()
+        if notify:
+            self.ctrl.notify.emit("kwhisper", t("settings.saved"))
+
     def _on_open_config(self) -> None:
         try:
             # We keep the reference so we don't lose the Popen (and so the
@@ -272,6 +314,9 @@ def main() -> int:
         level=os.environ.get("KWHISPER_LOG", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # Capture first-run BEFORE load_config(), which writes the default template
+    # when the file is missing (so the check would otherwise always be False).
+    first_run = not CONFIG_PATH.exists()
     cfg = load_config()
     set_language(cfg.ui.lang)
     # Under systemd --user the session bus may not be in the environment: without it
@@ -290,6 +335,10 @@ def main() -> int:
 
     app = KWhisper(cfg)
     app.setup_ui()
+    if first_run:
+        # Welcome the user and let them pick language + model up front, before
+        # the (slow) STT model starts loading in the background.
+        app.run_first_run_wizard()
     app.load_model_async()
     app.start_listener()
 

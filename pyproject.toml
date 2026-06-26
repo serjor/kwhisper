@@ -22,6 +22,7 @@ dependencies = [
     # --- Utilidades ---
     "pydantic>=2",
     "platformdirs",
+    "tomlkit",              # round-trip TOML writes (Settings dialog) preserving comments
     "dbus-next",            # fallback: portal GlobalShortcuts (modo toggle)
     # PySide6 se toma del sistema (pacman) vía venv --system-site-packages.
     # Si prefieres aislarlo del todo, añade aquí "PySide6==6.11.*" y recrea el venv sin --system-site-packages.

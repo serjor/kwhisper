@@ -31,6 +31,7 @@ def _label(state: str) -> str:
 
 class Tray:
     def __init__(self, on_toggle_enabled: Callable[[bool], None],
+                 on_open_settings: Callable[[], None],
                  on_open_config: Callable[[], None],
                  on_quit: Callable[[], None]):
         self._tray = QSystemTrayIcon()
@@ -50,24 +51,41 @@ class Tray:
         self._enabled_action.toggled.connect(on_toggle_enabled)
         menu.addAction(self._enabled_action)
 
-        cfg_action = QAction(t("tray.edit_config"))
-        cfg_action.triggered.connect(on_open_config)
-        menu.addAction(cfg_action)
+        # Graphical settings (language / model / system prompt) for everyone…
+        self._settings_action = QAction(t("settings.menu"))
+        self._settings_action.triggered.connect(on_open_settings)
+        menu.addAction(self._settings_action)
+
+        # …and the raw TOML for power users who want every knob.
+        self._cfg_action = QAction(t("tray.edit_config"))
+        self._cfg_action.triggered.connect(on_open_config)
+        menu.addAction(self._cfg_action)
 
         menu.addSeparator()
-        quit_action = QAction(t("tray.quit"))
-        quit_action.triggered.connect(on_quit)
-        menu.addAction(quit_action)
+        self._quit_action = QAction(t("tray.quit"))
+        self._quit_action.triggered.connect(on_quit)
+        menu.addAction(self._quit_action)
 
         self._tray.setContextMenu(menu)
         self.set_state("idle")
         self._tray.show()
+
+    def retranslate(self) -> None:
+        """Re-apply menu labels in the active language (after a live language
+        change in Settings), so the user does not have to restart the daemon."""
+        self._enabled_action.setText(
+            t("dictation.on") if self._enabled_action.isChecked() else t("dictation.off"))
+        self._settings_action.setText(t("settings.menu"))
+        self._cfg_action.setText(t("tray.edit_config"))
+        self._quit_action.setText(t("tray.quit"))
+        self.set_state(self._state)
 
     def _on_enabled_toggled(self, checked: bool) -> None:
         # Explicit text in the menu: the user reads the state without relying on the icon.
         self._enabled_action.setText(t("dictation.on") if checked else t("dictation.off"))
 
     def set_state(self, state: str) -> None:
+        self._state = state  # remembered so retranslate() can re-render it
         icon_name = _ICONS.get(state, _ICONS["idle"])
         icon = QIcon.fromTheme(icon_name)
         if icon.isNull():

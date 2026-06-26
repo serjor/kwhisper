@@ -69,6 +69,30 @@ _CATALOG: dict[str, dict[str, str]] = {
         "tray.disabled": "kwhisper: disabled",
         "tray.edit_config": "Edit configuration…",
         "tray.quit": "Quit",
+        # --- settings dialog ---
+        "settings.menu": "Settings…",
+        "settings.title": "kwhisper — Settings",
+        "settings.language": "Interface language",
+        "settings.lang_auto": "Automatic (system)",
+        "settings.model": "Ollama model",
+        "settings.model_refresh": "Refresh",
+        "settings.model_found": "{count} model(s) found in Ollama.",
+        "settings.model_none": "Ollama is not responding — type the model name manually.",
+        "settings.advanced": "Advanced",
+        "settings.system_prompt": "System prompt (LLM)",
+        "settings.prompt_warning": "Editing the system prompt can BREAK command "
+                                   "recognition and dictation punctuation. Change it only "
+                                   "if you know what you are doing — use “Restore default "
+                                   "prompt” to roll back.",
+        "settings.restore_default": "Restore default prompt",
+        "settings.save": "Save",
+        "settings.cancel": "Cancel",
+        "settings.saved": "Settings saved.",
+        # --- first-run wizard ---
+        "wizard.title": "Welcome to kwhisper",
+        "wizard.intro": "Let’s set up the basics. You can change these anytime from the "
+                        "tray menu → Settings.",
+        "wizard.finish": "Finish",
         # --- commands ---
         "cmd.no_action": "No action.",
         "cmd.open_no_app": "'open' command without an application.",
@@ -192,6 +216,30 @@ _CATALOG: dict[str, dict[str, str]] = {
         "tray.disabled": "kwhisper: desactivado",
         "tray.edit_config": "Editar configuración…",
         "tray.quit": "Salir",
+        # --- settings dialog ---
+        "settings.menu": "Ajustes…",
+        "settings.title": "kwhisper — Ajustes",
+        "settings.language": "Idioma de la interfaz",
+        "settings.lang_auto": "Automático (sistema)",
+        "settings.model": "Modelo de Ollama",
+        "settings.model_refresh": "Actualizar",
+        "settings.model_found": "{count} modelo(s) encontrado(s) en Ollama.",
+        "settings.model_none": "Ollama no responde — escribe el nombre del modelo a mano.",
+        "settings.advanced": "Avanzado",
+        "settings.system_prompt": "Prompt de sistema (LLM)",
+        "settings.prompt_warning": "Editar el prompt de sistema puede ROMPER el "
+                                   "reconocimiento de comandos y la puntuación del dictado. "
+                                   "Cámbialo solo si sabes lo que haces — usa “Restaurar "
+                                   "prompt por defecto” para deshacer.",
+        "settings.restore_default": "Restaurar prompt por defecto",
+        "settings.save": "Guardar",
+        "settings.cancel": "Cancelar",
+        "settings.saved": "Ajustes guardados.",
+        # --- first-run wizard ---
+        "wizard.title": "Bienvenido a kwhisper",
+        "wizard.intro": "Vamos a configurar lo básico. Puedes cambiarlo cuando quieras "
+                        "desde el menú de la bandeja → Ajustes.",
+        "wizard.finish": "Finalizar",
         # --- commands ---
         "cmd.no_action": "Sin acción.",
         "cmd.open_no_app": "Comando 'abrir' sin aplicación.",

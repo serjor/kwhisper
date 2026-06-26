@@ -179,7 +179,7 @@ Procesos externos: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 ## Hoja de ruta
 
 - [ ] Doble hotkey dedicado (una tecla = dictado, otra = comando) para cero ambigüedad.
-- [ ] Diálogo de configuración gráfico (PySide6).
+- [x] Diálogo de configuración gráfico (PySide6) + asistente de primer arranque (idioma, modelo, prompt de sistema).
 - [ ] Comandos de edición fijos («nueva línea», «borra eso»).
 - [ ] Plasmoid de panel opcional (estado vía D-Bus).
 - [ ] PKGBUILD para AUR.

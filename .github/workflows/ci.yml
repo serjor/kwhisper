@@ -74,7 +74,7 @@ jobs:
         # evdev se compila desde sdist; gcc y las cabeceras ya vienen en ubuntu.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pydantic platformdirs httpx evdev
+          python -m pip install pytest pydantic platformdirs httpx evdev tomlkit
 
       - name: Run pytest
         run: pytest
