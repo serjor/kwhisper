@@ -51,6 +51,58 @@ say "Instalando kwhisper y dependencias (esto descarga las libs CUDA, puede tard
 VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR"
 ok "kwhisper instalado en el venv."
 
+# 3b) TTS: OPTIONAL voice output (spoken feedback + answers) -------------------
+say "Voz (TTS) — OPCIONAL: feedback y respuestas habladas"
+if ask "¿Instalar la salida de voz (Kokoro, CPU, sin torch)?"; then
+  VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts]" \
+    || warn "No pude instalar el extra TTS (kokoro-onnx)."
+  # Kokoro model files (not shipped by pip). Idempotent download into the XDG data dir
+  # that TTSConfig.model_dir defaults to.
+  MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/kwhisper/models"
+  KMODELS="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+  mkdir -p "$MODELS_DIR"
+  for f in kokoro-v1.0.onnx voices-v1.0.bin; do
+    if [[ -s "$MODELS_DIR/$f" ]]; then
+      ok "$f ya descargado."
+    elif curl -fL -o "$MODELS_DIR/$f" "$KMODELS/$f"; then
+      ok "$f → $MODELS_DIR"
+    else
+      warn "No pude descargar $f (revisa la release de kokoro-onnx)."
+    fi
+  done
+  if ask "¿Instalar además Chatterbox (respuestas neuronales, torch cu128, descarga grande)?"; then
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts-chatterbox]" \
+      || warn "No pude instalar chatterbox-tts."
+    # Blackwell sm_120: override Chatterbox's torch==2.6.0 pin (no sm_120 kernels)
+    # with cu128 wheels AFTER installing it. PyPI doesn't serve cu128 → index-url.
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" --upgrade \
+      torch torchaudio --index-url https://download.pytorch.org/whl/cu128 \
+      || warn "No pude forzar torch cu128; Chatterbox puede fallar en la RTX 50xx."
+    # Forcing torch may pull a cuDNN/cuBLAS that breaks faster-whisper/ct2. Re-pin the
+    # cuDNN and VERIFY with a REAL GPU inference: an import alone won't surface a
+    # cuBLAS/cuDNN ABI clash, which only fails at the first transcription.
+    VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" "nvidia-cudnn-cu12==9.*" || true
+    if "$VENV/bin/python" - <<'PY' 2>/dev/null
+import numpy as np
+from faster_whisper import WhisperModel
+m = WhisperModel("tiny", device="cuda", compute_type="float16")
+list(m.transcribe(np.zeros(16000, dtype="float32"))[0])  # 1s silence forces cuBLAS/cuDNN
+PY
+    then
+      ok "faster-whisper sigue transcribiendo en GPU tras instalar torch cu128."
+    else
+      warn "La STT en GPU ya NO funciona (choque de cuDNN/cuBLAS con torch cu128)."
+      echo "    Aísla Chatterbox en un venv SOLO para el worker (necesita kwhisper+kokoro+sounddevice):"
+      echo "      uv venv --system-site-packages /ruta/tts-venv"
+      echo "      uv pip install --python /ruta/tts-venv/bin/python -e \"$PROJECT_DIR[tts,tts-chatterbox]\""
+      echo "      uv pip install --python /ruta/tts-venv/bin/python --upgrade torch torchaudio --index-url https://download.pytorch.org/whl/cu128"
+      echo "      export KWHISPER_TTS_PYTHON=/ruta/tts-venv/bin/python"
+    fi
+  fi
+else
+  ok "TTS omitido (puedes instalarlo luego:  uv pip install -e \"$PROJECT_DIR[tts]\")."
+fi
+
 # 4) input group (evdev push-to-talk) -----------------------------------------
 say "Permiso de teclado para push-to-talk (grupo input)"
 if id -nG "$USER" | tr ' ' '\n' | grep -qx input; then

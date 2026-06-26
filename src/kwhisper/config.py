@@ -91,6 +91,34 @@ class CommandsConfig(BaseModel):
     allow_close: bool = True
 
 
+class TTSConfig(BaseModel):
+    # DEFAULT off: nothing changes for current users until they opt in (and
+    # install the TTS extra). The neural engines NEVER load in the daemon; they
+    # live in an isolated subprocess (kwhisper.tts_worker), so torch (Chatterbox)
+    # cannot clash with the cuDNN-9 that faster-whisper pins via LD_LIBRARY_PATH.
+    enabled: bool = False
+    speak_feedback: bool = True     # A: read command confirmations / errors aloud (Kokoro)
+    speak_answers: bool = True      # B: read the LLM's answer aloud (question mode)
+    # Kokoro = torch-free, CPU, always works. Chatterbox = opt-in, heavier (torch cu128),
+    # used only for answers; it auto-falls-back to Kokoro inside the worker if it can't load.
+    answer_engine: Literal["kokoro", "chatterbox"] = "kokoro"
+    voice: str = "ef_dora"          # Kokoro es voices: ef_dora (f) | em_alex (m) | em_santa (m)
+    speed: float = 1.0
+    lang: str = "es"
+    # Kokoro device: "cpu" keeps the new code path CUDA-free (Whisper provably untouched).
+    device: Literal["cpu", "cuda"] = "cpu"
+    model_dir: str = ""             # "" = <user data dir>/kwhisper/models
+    isolate: bool = True            # run engines in an isolated subprocess (do NOT disable on Blackwell)
+    interrupt_on_ptt: bool = True   # barge-in: pressing the PTT key cuts the current utterance
+    max_restarts: int = 5           # respawns of the worker before auto-disabling TTS this session
+    # The transcription must START with one of these to enter question mode (B);
+    # otherwise the normal dictation/command pipeline is untouched. Keep them
+    # DISTINCTIVE and multi-word: a single common word (e.g. "pregunta") would
+    # swallow legitimate dictation that merely begins with it.
+    activation_phrases: list[str] = Field(
+        default_factory=lambda: ["oye asistente", "oye kwhisper"])
+
+
 class Config(BaseModel):
     hotkey: HotkeyConfig = Field(default_factory=HotkeyConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
@@ -99,6 +127,7 @@ class Config(BaseModel):
     inject: InjectConfig = Field(default_factory=InjectConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
     commands: CommandsConfig = Field(default_factory=CommandsConfig)
+    tts: TTSConfig = Field(default_factory=TTSConfig)
 
 
 DEFAULT_TOML = """\
@@ -164,6 +193,28 @@ lang = "auto"             # UI/CLI language: "auto" (from locale) | "es" | "en"
 enabled = true
 allow_launch = true        # allow "abre <app>"
 allow_close = true         # allow "cierra <app>" (sends SIGTERM by process name)
+
+[tts]
+# Voice output (TTS). Disabled by default: needs the TTS extra installed
+# (scripts/setup.sh offers it). Feedback and answers use Kokoro (torch-free, on
+# CPU); Chatterbox (torch cu128, heavy) is optional and only for answers. The
+# neural engines run in an isolated subprocess so they can't destabilize Whisper.
+enabled = false
+speak_feedback = true       # read command confirmations and errors aloud
+speak_answers = true        # read the assistant's answer aloud (question mode)
+answer_engine = "kokoro"    # "kokoro" (recommended) | "chatterbox" (torch cu128)
+voice = "ef_dora"           # Kokoro es voice: ef_dora (f) | em_alex (m) | em_santa (m)
+speed = 1.0
+lang = "es"
+device = "cpu"              # "cpu" (recommended) | "cuda" (needs onnxruntime-gpu cu128)
+model_dir = ""             # empty = <user data dir>/kwhisper/models
+isolate = true              # run engines in an isolated subprocess (do NOT disable on Blackwell)
+interrupt_on_ptt = true     # cut the current utterance when the PTT key is pressed (barge-in)
+max_restarts = 5            # worker respawns before auto-disabling TTS this session
+# Phrases that open question mode (the transcription must START with one of them).
+# Keep them distinctive and multi-word: a single common word like "pregunta" would
+# hijack normal dictation that happens to begin with it.
+activation_phrases = ["oye asistente", "oye kwhisper"]
 """
 
 
@@ -195,6 +246,10 @@ def save_settings(
     ui_lang: str | None = None,
     llm_model: str | None = None,
     llm_system_prompt: str | None = None,
+    tts_enabled: bool | None = None,
+    tts_feedback: bool | None = None,
+    tts_answers: bool | None = None,
+    tts_voice: str | None = None,
 ) -> None:
     """Persist a subset of settings to ``config.toml`` (for the Settings UI).
 
@@ -229,6 +284,14 @@ def save_settings(
         _table("llm")["system_prompt"] = tomlkit.string(
             llm_system_prompt, multiline="\n" in llm_system_prompt
         )
+    if tts_enabled is not None:
+        _table("tts")["enabled"] = tts_enabled
+    if tts_feedback is not None:
+        _table("tts")["speak_feedback"] = tts_feedback
+    if tts_answers is not None:
+        _table("tts")["speak_answers"] = tts_answers
+    if tts_voice is not None:
+        _table("tts")["voice"] = tts_voice
 
     fd, tmp = tempfile.mkstemp(dir=CONFIG_DIR, prefix=".config.", suffix=".toml.tmp")
     try:

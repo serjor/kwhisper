@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .config import LLMConfig, UIConfig
+from .config import LLMConfig, TTSConfig, UIConfig
 from .i18n import t
 from .llm import DEFAULT_SYSTEM_PROMPT, list_models, normalize_system_prompt
 
@@ -43,7 +44,8 @@ _LANGS = [("auto", "settings.lang_auto"), ("es", "Español"), ("en", "English")]
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, ui_cfg: UIConfig, llm_cfg: LLMConfig, parent: QWidget | None = None):
+    def __init__(self, ui_cfg: UIConfig, llm_cfg: LLMConfig, tts_cfg: TTSConfig,
+                 parent: QWidget | None = None):
         super().__init__(parent)
         self._llm_cfg = llm_cfg
         self.setWindowTitle(t("settings.title"))
@@ -81,6 +83,27 @@ class SettingsDialog(QDialog):
         self._model_hint.setStyleSheet("color: palette(mid);")
         form.addRow("", self._model_hint)
         self._reload_models()  # populates from Ollama; keeps the configured model selected
+
+        # --- Voice output (TTS) ---
+        tts_box = QGroupBox(t("settings.tts_enable"))
+        tts_form = QFormLayout(tts_box)
+        self._tts_enabled = QCheckBox()
+        self._tts_enabled.setChecked(tts_cfg.enabled)
+        tts_form.addRow(t("settings.tts_enable"), self._tts_enabled)
+        self._tts_feedback = QCheckBox()
+        self._tts_feedback.setChecked(tts_cfg.speak_feedback)
+        tts_form.addRow(t("settings.tts_feedback"), self._tts_feedback)
+        self._tts_answers = QCheckBox()
+        self._tts_answers.setChecked(tts_cfg.speak_answers)
+        tts_form.addRow(t("settings.tts_answers"), self._tts_answers)
+        self._tts_voice = QComboBox()
+        self._tts_voice.addItems(["ef_dora", "em_alex", "em_santa"])
+        # Keep a custom/unknown voice from the TOML selectable instead of dropping it.
+        if self._tts_voice.findText(tts_cfg.voice) < 0:
+            self._tts_voice.insertItem(0, tts_cfg.voice)
+        self._tts_voice.setCurrentText(tts_cfg.voice)
+        tts_form.addRow(t("settings.tts_voice"), self._tts_voice)
+        root.addWidget(tts_box)
 
         # --- Advanced: system prompt (collapsed, with a serious warning) ---
         self._advanced = QGroupBox(t("settings.advanced"))
@@ -150,4 +173,8 @@ class SettingsDialog(QDialog):
             "ui_lang": self._lang.currentData(),
             "llm_model": self._model.currentText().strip() or self._llm_cfg.model,
             "llm_system_prompt": normalize_system_prompt(self._prompt.toPlainText()),
+            "tts_enabled": self._tts_enabled.isChecked(),
+            "tts_feedback": self._tts_feedback.isChecked(),
+            "tts_answers": self._tts_answers.isChecked(),
+            "tts_voice": self._tts_voice.currentText().strip() or self._tts_voice.itemText(0),
         }

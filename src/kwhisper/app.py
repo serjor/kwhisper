@@ -54,6 +54,7 @@ class KWhisper:
         from .inject import TextInjector
         from .llm import IntentRouter
         from .stt import STTEngine
+        from .tts import TTSPlayer
 
         self.recorder = AudioRecorder(cfg.audio.samplerate, cfg.audio.channels, cfg.audio.device)
         self.stt = STTEngine(cfg.stt)
@@ -61,6 +62,9 @@ class KWhisper:
         self.injector = TextInjector(cfg.inject)
         self.executor = CommandExecutor(cfg.commands)
         self.feedback = Feedback(cfg.ui)
+        # Voice output (spoken feedback + answers). Inert unless cfg.tts.enabled;
+        # the neural engines live in an isolated subprocess spawned on first use.
+        self.tts = TTSPlayer(cfg.tts)
         self._listener = None
         self._quitting = False
         # Created by setup_ui() based on cfg.ui.overlay; defaulted here so the
@@ -160,6 +164,9 @@ class KWhisper:
             if not self.enabled or self._recording or self._processing:
                 return False
             self._recording = True
+        # Barge-in: cut any answer still being spoken so it doesn't bleed into
+        # the mic and the user can interrupt a long reply by pressing PTT again.
+        self.tts.cancel()
         try:
             self.recorder.start()
         except Exception as exc:  # noqa: BLE001
@@ -204,6 +211,23 @@ class KWhisper:
                 self.ctrl.notify.emit("kwhisper", t("no_speech"))
                 return
 
+            # B: question mode. If the transcription OPENS with an activation
+            # phrase, route it to the LLM and read the answer aloud instead of
+            # dictating. Deterministic (no classifier change), so normal dictation
+            # is never hijacked. Needs the LLM (router) to generate the answer.
+            if (self.cfg.tts.enabled and self.cfg.tts.speak_answers
+                    and self.router is not None):
+                question = self.tts.activation.match(text)
+                if question:  # truthy: a bare wakeword (empty) falls through to dictation
+                    self.ctrl.overlay.emit("processing", t("overlay.thinking"))
+                    answer = self.router.answer(question)
+                    if answer:
+                        self.ctrl.notify.emit("kwhisper", answer)
+                        self.tts.speak_answer(answer)
+                    else:
+                        self.ctrl.notify.emit("kwhisper", t("answer.failed"))
+                    return  # never inject the answer as dictated text
+
             # With the LLM active (router != None) we ALWAYS classify: that way
             # dictation gains punctuation/capitalization correction even if
             # command execution is disabled.
@@ -218,6 +242,7 @@ class KWhisper:
             if intent.kind == "command" and self.cfg.commands.enabled:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit(t("notify.command"), msg)
+                self.tts.speak_feedback(msg)  # A: read the result aloud (Kokoro)
             else:
                 # Hide the overlay BEFORE injecting so it does not keep the
                 # keyboard focus under KWin Wayland (otherwise the Ctrl+Shift+V
@@ -251,7 +276,7 @@ class KWhisper:
         from PySide6.QtWidgets import QDialog
 
         from .settings_dialog import SettingsDialog
-        dlg = SettingsDialog(self.cfg.ui, self.cfg.llm)
+        dlg = SettingsDialog(self.cfg.ui, self.cfg.llm, self.cfg.tts)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._apply_settings(**dlg.values(), notify=True)
 
@@ -267,20 +292,38 @@ class KWhisper:
                                  llm_system_prompt=self.cfg.llm.system_prompt, notify=False)
 
     def _apply_settings(self, *, ui_lang: str, llm_model: str,
-                        llm_system_prompt: str, notify: bool) -> None:
+                        llm_system_prompt: str, notify: bool,
+                        tts_enabled: bool | None = None,
+                        tts_feedback: bool | None = None,
+                        tts_answers: bool | None = None,
+                        tts_voice: str | None = None) -> None:
         """Persist the settings, then live-apply them (no daemon restart needed).
 
-        The IntentRouter shares this very ``cfg.llm`` object, so reassigning the
-        model and system prompt takes effect on the next classification without
-        rebuilding anything. A language change is re-rendered into the tray menu.
+        The IntentRouter and TTSPlayer share this very ``cfg.llm``/``cfg.tts``
+        object, so reassigning fields takes effect on the next use without
+        rebuilding anything. A language change is re-rendered into the tray menu;
+        a voice change respawns the TTS worker so the new voice is picked up.
         """
         from .config import save_settings
         save_settings(ui_lang=ui_lang, llm_model=llm_model,
-                      llm_system_prompt=llm_system_prompt)
+                      llm_system_prompt=llm_system_prompt,
+                      tts_enabled=tts_enabled, tts_feedback=tts_feedback,
+                      tts_answers=tts_answers, tts_voice=tts_voice)
         lang_changed = ui_lang != self.cfg.ui.lang
+        voice_changed = tts_voice is not None and tts_voice != self.cfg.tts.voice
         self.cfg.ui.lang = ui_lang
         self.cfg.llm.model = llm_model
         self.cfg.llm.system_prompt = llm_system_prompt
+        if tts_enabled is not None:
+            self.cfg.tts.enabled = tts_enabled
+        if tts_feedback is not None:
+            self.cfg.tts.speak_feedback = tts_feedback
+        if tts_answers is not None:
+            self.cfg.tts.speak_answers = tts_answers
+        if tts_voice is not None:
+            self.cfg.tts.voice = tts_voice
+        if voice_changed:
+            self.tts.reload()  # next utterance respawns the worker with the new voice
         if lang_changed:
             set_language(ui_lang)
             self.tray.retranslate()
@@ -306,6 +349,7 @@ class KWhisper:
             self._listener.stop()
         if self.router:
             self.router.close()
+        self.tts.close()
         QApplication.quit()
 
 

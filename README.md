@@ -14,6 +14,8 @@ machine: nothing leaves the internet.
 - **Activation**: push-to-talk via `evdev` (hold the key down).
 - **Injection**: clipboard + `Ctrl+V` (Spanish accents 100% reliable in KWin).
 - **UI**: tray icon + floating overlay + sounds.
+- **Voice (TTS, optional)**: reads confirmations and answers questions aloud
+  (Kokoro/Chatterbox) from an isolated subprocess. Off by default.
 
 > Designed and verified for: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
 > (Blackwell `sm_120`) · PipeWire. Should work on any Arch+KDE with an NVIDIA GPU.
@@ -61,6 +63,9 @@ The script (idempotent, asks for confirmation before each `sudo` change):
 3. Creates the venv with `uv` (`--system-site-packages` to reuse pacman's PySide6) and installs kwhisper + CUDA libs.
 4. Adds you to the `input` group (push-to-talk). **Requires logging out and back in.**
 5. Enables `ydotool.service` (user) and installs the `kwhisper.service` unit.
+
+The script also **offers (optional) voice/TTS**: it installs Kokoro and downloads
+its models, and optionally Chatterbox with torch cu128 for Blackwell.
 
 Then:
 
@@ -117,6 +122,19 @@ Command examples (natural language):
 > When in doubt, the classifier types it (dictation). If Ollama isn't available,
 > kwhisper keeps working as dictation only.
 
+### Voice (TTS) — optional
+
+With `[tts] enabled = true` (install the extra first, see Installation):
+
+- **Spoken feedback**: command confirmations are read aloud (Kokoro).
+- **Question mode**: if you open with an activation phrase ("oye asistente …",
+  "oye kwhisper …"), what follows is sent to the LLM and the answer is **read**
+  (not typed). E.g. "oye asistente, ¿qué hora es?". Press PTT again to cut a long
+  answer (barge-in).
+
+The neural engines run in an **isolated subprocess** so torch (Chatterbox) can't
+break Blackwell's faster-whisper: if they fail, only TTS goes down, never dictation.
+
 ## Configuration
 
 `~/.config/kwhisper/config.toml` (created automatically the first time). After
@@ -136,6 +154,15 @@ editing: `systemctl --user restart kwhisper`. Useful keys:
   sends `SIGTERM` to the matching process so it can save and exit cleanly).
 - `[ui] lang` — language of the interface (overlay, notifications, tray) and the
   CLI tools: `"auto"` (detect from the system locale), `"es"` or `"en"`.
+- `[tts] enabled` — `false` (default) disables voice. `true` requires the TTS extra
+  installed (`scripts/setup.sh` offers it).
+- `[tts] speak_feedback` / `speak_answers` — read command confirmations / read the
+  question-mode answers.
+- `[tts] answer_engine` — `"kokoro"` (CPU, recommended) or `"chatterbox"` (torch
+  cu128, more natural, opt-in; falls back to Kokoro if it fails).
+- `[tts] voice` — Kokoro voice: `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] activation_phrases` — phrases that open question mode (the transcription
+  must **start** with one). Keep them distinctive and multi-word.
 
 ## Troubleshooting
 
@@ -183,6 +210,7 @@ External processes: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 
 - [ ] Dedicated dual hotkey (one key = dictation, another = command) for zero ambiguity.
 - [x] Graphical configuration dialog (PySide6) + first-run wizard (language, model, system prompt).
+- [x] Voice output (TTS): spoken feedback + question mode with a spoken answer (Kokoro/Chatterbox).
 - [ ] Fixed editing commands («new line», «delete that»).
 - [ ] Optional panel plasmoid (status via D-Bus).
 - [ ] PKGBUILD for the AUR.

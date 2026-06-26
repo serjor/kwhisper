@@ -37,6 +37,18 @@ dev = [
     "build",
     "twine",
 ]
+# Voz (TTS) — OPCIONAL. Kokoro (onnxruntime, sin torch) cubre el feedback hablado
+# y las respuestas por defecto; corre en CPU y convive limpio con faster-whisper.
+# Los motores se ejecutan en un subproceso aislado (kwhisper.tts_worker).
+tts = [
+    "kokoro-onnx",
+]
+# Motor neuronal opcional SOLO para respuestas. Pesado: arrastra torch. En Blackwell
+# (sm_120) hay que forzar luego torch cu128 (scripts/setup.sh lo hace). NO añadir
+# torch aquí: PyPI no sirve las ruedas cu128.
+tts-chatterbox = [
+    "chatterbox-tts",
+]
 
 [project.urls]
 Homepage = "https://github.com/serjor/kwhisper"
