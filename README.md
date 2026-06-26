@@ -161,8 +161,8 @@ editing: `systemctl --user restart kwhisper`. Useful keys:
   question-mode answers.
 - `[tts] engine` — `"piper"` (Castilian es-ES, natural, recommended) · `"kokoro"`
   (multilingual, but Latin-American Spanish) · `"chatterbox"` (torch cu128, opt-in; needs Python <3.14).
-- `[tts] voice` — per engine: Piper `es_ES-davefx-medium` / `es_ES-sharvard-medium`;
-  Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] voice` — per engine: Piper `es_ES-sharvard-medium#1` (female) / `#0` (male) /
+  `es_ES-davefx-medium`; Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
 - `[tts] activation_phrases` — phrases that open question mode (the transcription
   must **start** with one). Keep them distinctive and multi-word.
 

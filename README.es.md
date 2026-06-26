@@ -162,8 +162,8 @@ nunca el dictado.
   las respuestas del modo pregunta.
 - `[tts] engine` — `"piper"` (castellano es-ES, natural, recomendado) · `"kokoro"`
   (multilingüe, pero español latino) · `"chatterbox"` (torch cu128, opt-in; requiere Python <3.14).
-- `[tts] voice` — según el motor: Piper `es_ES-davefx-medium` / `es_ES-sharvard-medium`;
-  Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
+- `[tts] voice` — según el motor: Piper `es_ES-sharvard-medium#1` (femenina) / `#0`
+  (masculina) / `es_ES-davefx-medium`; Kokoro `ef_dora` (f) · `em_alex` (m) · `em_santa` (m).
 - `[tts] activation_phrases` — frases que abren el modo pregunta (la transcripción
   debe **empezar** por una). Mantenlas distintivas y de varias palabras.
 

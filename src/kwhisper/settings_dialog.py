@@ -100,8 +100,9 @@ class SettingsDialog(QDialog):
         # voice without separately reasoning about engines.
         self._tts_voice = QComboBox()
         for label, eng, voc in (
-            ("Piper · es-ES davefx (castellano)", "piper", "es_ES-davefx-medium"),
-            ("Piper · es-ES sharvard (castellano)", "piper", "es_ES-sharvard-medium"),
+            ("Piper · es-ES sharvard F (castellano, femenina)", "piper", "es_ES-sharvard-medium#1"),
+            ("Piper · es-ES sharvard M (castellano, masculina)", "piper", "es_ES-sharvard-medium#0"),
+            ("Piper · es-ES davefx (castellano, masculina)", "piper", "es_ES-davefx-medium"),
             ("Kokoro · ef_dora (latam, f)", "kokoro", "ef_dora"),
             ("Kokoro · em_alex (latam, m)", "kokoro", "em_alex"),
             ("Kokoro · em_santa (latam, m)", "kokoro", "em_santa"),

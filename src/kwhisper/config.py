@@ -104,9 +104,10 @@ class TTSConfig(BaseModel):
     # Latin-American. Chatterbox is the most natural but pulls torch (opt-in; won't
     # install on Python >=3.14 — use a separate 3.12 venv via KWHISPER_TTS_PYTHON).
     engine: Literal["kokoro", "piper", "chatterbox"] = "piper"
-    # Interpreted per engine: Piper = voice-model filename ("es_ES-davefx-medium");
+    # Interpreted per engine: Piper = voice-model file with an optional "#<speaker_id>"
+    # for multi-speaker models (default es_ES-sharvard-medium#1 = Castilian female);
     # Kokoro = built-in voice id ("ef_dora"); Chatterbox = ignored (uses lang).
-    voice: str = "es_ES-davefx-medium"
+    voice: str = "es_ES-sharvard-medium#1"
     speed: float = 1.0
     lang: str = "es"
     # Kokoro device: "cpu" keeps the new code path CUDA-free (Whisper provably untouched).
@@ -212,10 +213,11 @@ speak_answers = true        # read the assistant's answer aloud (question mode)
 #   "chatterbox" = most natural, but pulls torch cu128 (opt-in; needs Python <3.14)
 engine = "piper"
 # voice — interpreted per engine:
-#   piper:      voice-model file, e.g. "es_ES-davefx-medium" | "es_ES-sharvard-medium"
-#   kokoro:     built-in id "ef_dora" (f) | "em_alex" (m) | "em_santa" (m)  [Latin-American]
+#   piper:  voice-model file + optional "#<speaker_id>" for multi-speaker models, e.g.
+#           "es_ES-sharvard-medium#1" (Castilian female) | "...#0" (male) | "es_ES-davefx-medium"
+#   kokoro: built-in id "ef_dora" (f) | "em_alex" (m) | "em_santa" (m)  [Latin-American]
 #   chatterbox: ignored (uses lang)
-voice = "es_ES-davefx-medium"
+voice = "es_ES-sharvard-medium#1"
 speed = 1.0
 lang = "es"
 device = "cpu"              # "cpu" (recommended) | "cuda" (needs onnxruntime-gpu cu128)

@@ -151,7 +151,8 @@ def _check_tts() -> None:
                       t("doctor.tts_model_absent_detail", dir=model_dir))
 
     if cfg.engine == "piper":
-        _check_models((cfg.voice + ".onnx", cfg.voice + ".onnx.json"))
+        model = cfg.voice.partition("#")[0]  # strip optional "#<speaker_id>"
+        _check_models((model + ".onnx", model + ".onnx.json"))
         try:
             import piper  # noqa: F401
             _line(OK, t("doctor.tts_piper_ok"))

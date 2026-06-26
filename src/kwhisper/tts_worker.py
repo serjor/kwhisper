@@ -53,12 +53,14 @@ class _Kokoro:
 class _Piper:
     """Lazy Piper (onnxruntime, no torch). Natural es-ES voices; sr is per-model.
 
-    ``voice`` is the voice-model basename: it loads ``<model_dir>/<voice>.onnx``
-    (with the adjacent ``.onnx.json``).
+    ``voice`` is the voice-model basename, optionally with a ``#<speaker_id>`` suffix
+    for multi-speaker models (e.g. ``es_ES-sharvard-medium#1`` = speaker F). It loads
+    ``<model_dir>/<basename>.onnx`` (with the adjacent ``.onnx.json``).
     """
 
     def __init__(self, cfg: dict):
         self._v = None
+        self._sid = None
         self.cfg = cfg
 
     def synth(self, text: str):
@@ -66,10 +68,16 @@ class _Piper:
             import os
             from piper import PiperVoice
             d = self.cfg["model_dir"]
+            name, _, sid = self.cfg["voice"].partition("#")
+            self._sid = int(sid) if sid else None
             kw = {"use_cuda": True} if self.cfg.get("device") == "cuda" else {}
-            self._v = PiperVoice.load(os.path.join(d, self.cfg["voice"] + ".onnx"), **kw)
+            self._v = PiperVoice.load(os.path.join(d, name + ".onnx"), **kw)
         import numpy as np
-        chunks = list(self._v.synthesize(text))
+        syn = None
+        if self._sid is not None:
+            from piper import SynthesisConfig
+            syn = SynthesisConfig(speaker_id=self._sid)
+        chunks = list(self._v.synthesize(text, syn_config=syn))
         audio = np.concatenate([c.audio_float_array for c in chunks])
         return audio, chunks[0].sample_rate
 

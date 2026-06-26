@@ -59,9 +59,9 @@ if ask "¿Instalar la salida de voz (Kokoro, CPU, sin torch)?"; then
   # Voice models (not shipped by pip). Idempotent download into the XDG data dir
   # that TTSConfig.model_dir defaults to. Default engine is Piper (Castilian es-ES).
   MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/kwhisper/models"
-  PIPER_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/davefx/medium"
+  PIPER_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/sharvard/medium"
   mkdir -p "$MODELS_DIR"
-  for f in es_ES-davefx-medium.onnx es_ES-davefx-medium.onnx.json; do
+  for f in es_ES-sharvard-medium.onnx es_ES-sharvard-medium.onnx.json; do
     if [[ -s "$MODELS_DIR/$f" ]]; then
       ok "$f ya descargado."
     elif curl -fsSL -o "$MODELS_DIR/$f" "$PIPER_BASE/$f"; then
@@ -70,7 +70,7 @@ if ask "¿Instalar la salida de voz (Kokoro, CPU, sin torch)?"; then
       warn "No pude descargar $f (voz Piper es_ES)."
     fi
   done
-  echo "    Voz por defecto: Piper es_ES-davefx-medium (castellano de España)."
+  echo "    Voz por defecto: Piper es_ES-sharvard-medium#1 (castellano de España, femenina)."
   echo "    Para usar Kokoro: [tts] engine = \"kokoro\" y descarga sus modelos (ver README)."
   if ask "¿Instalar además Chatterbox (respuestas neuronales, torch cu128, descarga grande)?"; then
     VIRTUAL_ENV="$VENV" uv pip install --python "$VENV/bin/python" -e "$PROJECT_DIR[tts-chatterbox]" \
