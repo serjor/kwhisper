@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 class Intent(BaseModel):
     kind: str = "dictation"          # "dictation" | "command"
     text: str = ""                   # text to insert (if dictation)
-    action: str = "none"             # "open_app" | "press_key" | "none"
+    action: str = "none"             # "open_app" | "close_app" | "press_key" | "none"
     argument: str = ""               # app name, key combination, etc.
 
 
@@ -38,7 +38,7 @@ _FORMAT_SCHEMA = {
     "properties": {
         "kind": {"type": "string", "enum": ["dictation", "command"]},
         "text": {"type": "string"},
-        "action": {"type": "string", "enum": ["open_app", "press_key", "none"]},
+        "action": {"type": "string", "enum": ["open_app", "close_app", "press_key", "none"]},
         "argument": {"type": "string"},
     },
     "required": ["kind", "text", "action", "argument"],
@@ -58,12 +58,14 @@ corregidas, SIN reescribir ni resumir ni añadir nada. action="none", argument="
 2. kind="command": el usuario da una orden imperativa dirigida al ordenador \
 (abrir programas, pulsar teclas del sistema). Rellena:
    - action="open_app", argument=<nombre del programa, ej. "firefox">  → para "abre/lanza/inicia X".
+   - action="close_app", argument=<nombre del programa, ej. "firefox">  → para "cierra/para/detén X".
    - action="press_key", argument=<combinación, ej. "Return", "ctrl+c", "Escape">  → para "pulsa/dale a X".
    En kind="command", "text" va vacío.
 
 Reglas:
 - Ante la duda, es "dictation". Solo es "command" si es una orden CLARA al ordenador.
-- Frases conversacionales o de contenido ("abre el documento y escribe...", "dile que...") son DICTADO.
+- Frases conversacionales o de contenido ("abre el documento y escribe...", "cierra el párrafo...", "dile que...") son DICTADO.
+- "close_app" se refiere a TERMINAR un programa (ej. "cierra firefox"), no a cerrar una ventana, pestaña o documento dentro de una app (eso es dictado o press_key).
 - Responde SOLO con el objeto JSON pedido."""
 
 _FEWSHOT = [
@@ -77,6 +79,8 @@ _FEWSHOT = [
      {"kind": "dictation", "text": "El año pasado estuve en España con mi niño.", "action": "none", "argument": ""}),
     ("lanza la terminal konsole",
      {"kind": "command", "text": "", "action": "open_app", "argument": "konsole"}),
+    ("cierra firefox",
+     {"kind": "command", "text": "", "action": "close_app", "argument": "firefox"}),
 ]
 
 

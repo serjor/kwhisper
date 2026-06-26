@@ -131,6 +131,8 @@ Ejemplos de comandos (lenguaje natural, en español):
   el dictado sigue beneficiándose de la corrección de puntuación del LLM.
 - `[inject] method` — `"clipboard"` (recomendado) o `"dotool"`.
 - `[commands] allow_launch` — permitir abrir aplicaciones por voz.
+- `[commands] allow_close` — permitir cerrar aplicaciones por voz («cierra firefox»;
+  envía `SIGTERM` al proceso correspondiente para que guarde y salga limpiamente).
 - `[ui] lang` — idioma de la interfaz (overlay, notificaciones, bandeja) y de las
   herramientas de línea de comandos: `"auto"` (detectar del locale del sistema),
   `"es"` o `"en"`.

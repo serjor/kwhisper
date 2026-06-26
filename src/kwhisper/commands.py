@@ -6,6 +6,7 @@
 
 Only executes the actions the classifier can emit:
 * ``open_app``   → launches a program (if allowed in config).
+* ``close_app``  → terminates a program by name with SIGTERM (if allowed).
 * ``press_key``  → sends a key combination with ydotool.
 * ``none``       → does nothing.
 
@@ -18,6 +19,7 @@ import logging
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 from pathlib import Path
 
@@ -88,12 +90,39 @@ def _parse_desktop(path: Path) -> dict[str, str]:
     return entry
 
 
+# Match weights for (exact, prefix, substring, compact-substring). ``Name``
+# carries the brand; ``GenericName`` ("Calculadora", "Web Browser") is a weaker,
+# more ambiguous signal, so it scores lower and never outranks a Name hit — yet
+# an exact/prefix generic match still clears the 60 threshold (e.g. spoken
+# "calculadora" → GenericName[es] "Calculadora científica").
+_NAME_WEIGHTS = (100, 80, 60, 40)
+_GENERIC_WEIGHTS = (75, 65, 45, 30)
+
+
+def _name_score(value: str, q: str, q_compact: str,
+                weights: tuple[int, int, int, int]) -> int:
+    """Score one Name/GenericName value against the spoken query ``q``."""
+    nl = " ".join(value.lower().split())
+    exact, prefix, substring, compact = weights
+    if nl == q:
+        return exact
+    if nl.startswith(q):
+        return prefix
+    if q in nl:
+        return substring
+    if q_compact and q_compact in nl.replace(" ", ""):
+        return compact
+    return 0
+
+
 def _resolve_desktop(query: str) -> tuple[str, Path] | None:
     """Find the best-matching .desktop for a spoken app name.
 
-    Matches (case-insensitive) every ``Name``/``Name[lang]`` value and the file
-    id against the spoken text. Returns ``(desktop_id, path)`` or ``None`` if
-    nothing scores high enough. The id is what ``kstart --application`` expects.
+    Matches (case-insensitive) every ``Name``/``Name[lang]`` and
+    ``GenericName``/``GenericName[lang]`` value plus the file id against the
+    spoken text. ``Name`` outweighs ``GenericName``. Returns ``(desktop_id,
+    path)`` or ``None`` if nothing scores high enough. The id is what
+    ``kstart --application`` expects.
     """
     q = " ".join(query.lower().split())
     if not q:
@@ -109,18 +138,12 @@ def _resolve_desktop(query: str) -> tuple[str, Path] | None:
             if entry.get("Hidden", "").lower() == "true" or not entry.get("Exec"):
                 continue
             score = 0
-            for key, name in entry.items():
-                if key != "Name" and not key.startswith("Name["):
-                    continue
-                nl = " ".join(name.lower().split())
-                if nl == q:
-                    score = max(score, 100)
-                elif nl.startswith(q):
-                    score = max(score, 80)
-                elif q in nl:
-                    score = max(score, 60)
-                elif q_compact and q_compact in nl.replace(" ", ""):
-                    score = max(score, 40)
+            for key, value in entry.items():
+                field = key.split("[", 1)[0]  # "Name[es]" -> "Name"
+                if field == "Name":
+                    score = max(score, _name_score(value, q, q_compact, _NAME_WEIGHTS))
+                elif field == "GenericName":
+                    score = max(score, _name_score(value, q, q_compact, _GENERIC_WEIGHTS))
             stem = path.stem.lower()
             if stem == q or stem.replace("-", " ").replace("_", " ") == q:
                 score = max(score, 95)
@@ -159,6 +182,47 @@ def _exe_candidate(name: str) -> str | None:
     return None
 
 
+def _matching_pids(names: set[str]) -> list[int]:
+    """PIDs owned by the current user whose process name is in ``names``.
+
+    Matches the kernel ``comm`` (capped at 15 chars by Linux) and the basename
+    of ``argv[0]``, case-insensitively. Never returns our own PID, and only
+    considers processes of the current uid (the only ones we may signal anyway).
+    """
+    targets = {n for n in (x.lower() for x in names) if n}
+    if not targets:
+        return []
+    truncated = {n[:15] for n in targets}  # /proc/<pid>/comm is truncated to 15
+    me = os.getpid()
+    uid = os.getuid()
+    proc = Path("/proc")
+    try:
+        entries = [e for e in proc.iterdir() if e.name.isdigit()]
+    except OSError:
+        return []
+    pids: list[int] = []
+    for entry in entries:
+        pid = int(entry.name)
+        if pid == me:
+            continue
+        try:
+            if entry.stat().st_uid != uid:
+                continue
+            comm = (entry / "comm").read_text(errors="replace").strip().lower()
+        except OSError:
+            continue  # process vanished or unreadable; skip it
+        argv0 = ""
+        try:
+            raw = (entry / "cmdline").read_bytes().split(b"\0")
+            if raw and raw[0]:
+                argv0 = os.path.basename(raw[0].decode("utf-8", "replace")).lower()
+        except OSError:
+            pass
+        if comm in truncated or (argv0 and argv0 in targets):
+            pids.append(pid)
+    return pids
+
+
 class CommandExecutor:
     def __init__(self, cfg: CommandsConfig):
         self.cfg = cfg
@@ -176,6 +240,8 @@ class CommandExecutor:
         """Execute the intent's action. Returns a human-readable result message."""
         if intent.action == "open_app":
             return self._open_app(intent.argument)
+        if intent.action == "close_app":
+            return self._close_app(intent.argument)
         if intent.action == "press_key":
             return self._press_key(intent.argument)
         return t("cmd.no_action")
@@ -203,6 +269,49 @@ class CommandExecutor:
         except Exception as exc:  # noqa: BLE001
             log.exception("Failed to open %s", name)
             return t("cmd.open_error", app=name, error=exc)
+
+    def _close_names(self, name: str) -> set[str]:
+        """Process-name candidates (binary basenames) for a spoken app name.
+
+        Symmetric to opening: the .desktop ``Exec`` gives the real binary even
+        when it differs from the spoken name ("Zen Browser" → ``zen-bin``), with
+        PATH and the raw name as fallbacks.
+        """
+        names: set[str] = set()
+        desktop = _resolve_desktop(name)
+        if desktop is not None:
+            argv = _exec_argv(_parse_desktop(desktop[1]).get("Exec", ""))
+            if argv:
+                names.add(os.path.basename(argv[0]))
+        binary = _exe_candidate(name)
+        if binary:
+            names.add(os.path.basename(binary))
+        low = " ".join(name.lower().split())
+        names.update({low, low.replace(" ", "-"),
+                      low.replace(" ", "_"), low.replace(" ", "")})
+        return {n for n in names if n}
+
+    def _close_app(self, name: str) -> str:
+        name = (name or "").strip()
+        if not name:
+            return t("cmd.close_no_app")
+        if not self.cfg.allow_close:
+            return t("cmd.close_disabled")
+        try:
+            pids = _matching_pids(self._close_names(name))
+            if not pids:
+                return t("cmd.app_not_running", app=name)
+            # SIGTERM only: lets the app save state and exit cleanly. We never
+            # escalate to SIGKILL — forcing a stuck app is the user's call.
+            for pid in pids:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    pass  # gone or not ours; nothing to do
+            return t("cmd.closing", app=name)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Failed to close %s", name)
+            return t("cmd.close_error", app=name, error=exc)
 
     def _launch_desktop(self, desktop: tuple[str, Path]) -> bool:
         """Launch a resolved .desktop via the first available launcher."""
