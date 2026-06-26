@@ -52,9 +52,9 @@ def test_config_defaults():
 def test_intent_fallback_to_dictation():
     # The default Intent model is dictation (what the fallback uses).
     from kwhisper.llm import Intent
-    i = Intent(tipo="dictado", texto="hola mundo")
-    assert i.tipo == "dictado" and i.texto == "hola mundo"
-    assert i.accion == "ninguna"
+    i = Intent(kind="dictation", text="hola mundo")
+    assert i.kind == "dictation" and i.text == "hola mundo"
+    assert i.action == "none"
 
 
 def test_invalid_backend_rejected():

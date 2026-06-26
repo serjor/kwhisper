@@ -210,11 +210,11 @@ class KWhisper:
                 intent = self.router.classify(text)
             else:
                 from .llm import Intent
-                intent = Intent(tipo="dictado", texto=text)
+                intent = Intent(kind="dictation", text=text)
 
             # Execute the command only if they are enabled; otherwise (or if it
             # is dictation, or a command with execution disabled) text is written.
-            if intent.tipo == "comando" and self.cfg.commands.enabled:
+            if intent.kind == "command" and self.cfg.commands.enabled:
                 msg = self.executor.execute(intent)
                 self.ctrl.notify.emit(t("notify.command"), msg)
             else:
@@ -222,7 +222,7 @@ class KWhisper:
                 # keyboard focus under KWin Wayland (otherwise the Ctrl+Shift+V
                 # would go to the overlay and nothing would be pasted in the target window).
                 self._hide_overlay_before_inject()
-                self.injector.inject(intent.texto or text)
+                self.injector.inject(intent.text or text)
         except Exception as exc:  # noqa: BLE001
             log.exception("Pipeline error")
             self.ctrl.overlay.emit("error", t("overlay.error"))

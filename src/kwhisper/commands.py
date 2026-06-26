@@ -5,9 +5,9 @@
 """Voice command executor (whitelist of safe actions).
 
 Only executes the actions the classifier can emit:
-* ``abrir_app``    → launches a program (if allowed in config).
-* ``pulsar_tecla`` → sends a key combination with ydotool.
-* ``ninguna``      → does nothing.
+* ``open_app``   → launches a program (if allowed in config).
+* ``press_key``  → sends a key combination with ydotool.
+* ``none``       → does nothing.
 
 By design it does NOT execute arbitrary shell commands dictated by voice.
 """
@@ -54,10 +54,10 @@ class CommandExecutor:
 
     def execute(self, intent: Intent) -> str:
         """Execute the intent's action. Returns a human-readable result message."""
-        if intent.accion == "abrir_app":
-            return self._open_app(intent.argumento)
-        if intent.accion == "pulsar_tecla":
-            return self._press_key(intent.argumento)
+        if intent.action == "open_app":
+            return self._open_app(intent.argument)
+        if intent.action == "press_key":
+            return self._press_key(intent.argument)
         return t("cmd.no_action")
 
     def _open_app(self, name: str) -> str:
