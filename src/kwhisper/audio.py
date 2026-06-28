@@ -31,6 +31,10 @@ class AudioRecorder:
         self._frames: list[np.ndarray] = []
         self._lock = threading.Lock()
         self._recording = False
+        # Live input level (0.0-1.0), updated on every audio block so the UI can
+        # draw a reactive equalizer. Plain float assignment is atomic under the
+        # GIL, so the overlay polls it from the Qt thread without a lock.
+        self._level = 0.0
 
     @staticmethod
     def _resolve_device(device: str):
@@ -42,12 +46,33 @@ class AudioRecorder:
         except ValueError:
             return device
 
+    # Perceptual mapping for the level meter: anything quieter than -58 dBFS reads
+    # as silence, -12 dBFS and above fills the meter. Working in dB (instead of
+    # raw RMS) makes the equalizer track loudness the way the ear does.
+    _LEVEL_FLOOR_DB = -58.0
+    _LEVEL_CEIL_DB = -12.0
+
     def _callback(self, indata, frames, time_info, status):  # noqa: ANN001
         if status:
             log.warning("Audio status: %s", status)
         with self._lock:
             if self._recording:
                 self._frames.append(indata.copy())
+        self._level = self._compute_level(indata)
+
+    def _compute_level(self, indata) -> float:  # noqa: ANN001
+        x = indata.astype(np.float32)
+        if x.ndim > 1:  # collapse to mono for the meter
+            x = x.mean(axis=1)
+        rms = float(np.sqrt(np.mean(x * x))) / 32768.0
+        db = 20.0 * np.log10(rms + 1e-7)
+        level = (db - self._LEVEL_FLOOR_DB) / (self._LEVEL_CEIL_DB - self._LEVEL_FLOOR_DB)
+        return float(np.clip(level, 0.0, 1.0))
+
+    @property
+    def level(self) -> float:
+        """Latest input level in [0, 1] for the live UI meter (0 while idle)."""
+        return self._level
 
     @property
     def recording(self) -> bool:
@@ -59,6 +84,7 @@ class AudioRecorder:
         with self._lock:
             self._frames = []
             self._recording = True
+        self._level = 0.0
         self._stream = sd.InputStream(
             samplerate=self.samplerate,
             channels=self.channels,
@@ -76,6 +102,7 @@ class AudioRecorder:
             return np.zeros(0, dtype=np.float32)
         with self._lock:
             self._recording = False
+        self._level = 0.0
         if self._stream is not None:
             try:
                 self._stream.stop()
