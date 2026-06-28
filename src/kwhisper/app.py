@@ -83,6 +83,13 @@ class KWhisper:
         self.ctrl.state.connect(self.tray.set_state)
         self.ctrl.notify.connect(self._do_notify)
         if self.overlay is not None:
+            # Feed the live mic level to the equalizer while recording.
+            self.overlay.set_level_source(lambda: self.recorder.level)
+            # Wayland forbids self-positioning, so KWin centres the pill; anchor it
+            # bottom-centre from the compositor instead (best-effort, no-op on X11).
+            from .kwin_overlay import KWinOverlayPlacer
+            self._overlay_placer = KWinOverlayPlacer("kwhisper-overlay")
+            self._overlay_placer.install()
             self.ctrl.overlay.connect(self._do_overlay)
 
     def _do_overlay(self, state: str, text: str) -> None:
@@ -379,6 +386,9 @@ def main() -> int:
 
     qapp = QApplication(sys.argv)
     qapp.setApplicationName("kwhisper")
+    # Wayland app_id: Qt derives it from the desktop file name (NOT applicationName),
+    # so set it explicitly to get a stable "kwhisper" resourceClass for KWin.
+    qapp.setDesktopFileName("kwhisper")
     qapp.setQuitOnLastWindowClosed(False)
 
     app = KWhisper(cfg)
