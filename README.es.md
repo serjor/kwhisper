@@ -2,15 +2,23 @@
 
 **Idiomas:** [English](README.md) · [Español](README.es.md)
 
-Dictado por voz **local** estilo Wispr Flow para **KDE Plasma 6 (Wayland)**.
+**Dictado por voz local y privado para Linux** — una alternativa libre y de código
+abierto a Wispr Flow, Dragon y el «dictado por voz» en la nube. Mantienes pulsada
+una tecla, hablas, la sueltas → el texto aparece en la ventana enfocada. **Todo
+corre en tu máquina: tu voz nunca sale de tu ordenador.** Pulido en **KDE Plasma 6
+(Wayland)**, pero el dictado básico también funciona sin GPU NVIDIA.
 
-Mantienes pulsada una tecla, hablas, la sueltas → el texto aparece en la ventana
-enfocada. Un LLM local decide si lo que dijiste es **dictado** (se escribe) o un
-**comando** (se ejecuta: abrir apps, pulsar teclas). Todo corre en tu máquina:
-nada sale a internet.
+<!-- TODO: aquí va una demo de 20–30 s (GIF/WebM) — vale más que cualquier párrafo.
+     Muestra: dictar una frase con acentos, un comando «abre firefox» y el modo
+     pregunta en voz alta.   ![demo de kwhisper](docs/demo.gif)  -->
 
-- **STT**: `faster-whisper` (`large-v3-turbo`, float16) en GPU NVIDIA.
-- **Clasificación dictado/comando**: Ollama (`gemma3`).
+Un LLM local **opcional** decide si lo que dijiste es **dictado** (se escribe) o un
+**comando** (se ejecuta: abrir apps, pulsar teclas). Desactívalo y tienes dictado
+simple y totalmente privado.
+
+- **STT**: `faster-whisper` — una GPU NVIDIA da resultados casi instantáneos, o
+  corre en **CPU** si no tienes una.
+- **Clasificación dictado/comando** *(opcional)*: Ollama (`gemma3`).
 - **Activación**: push-to-talk vía `evdev` (mantener pulsado).
 - **Inyección**: portapapeles + `Ctrl+V` (acentos del español 100% fiables en KWin).
 - **UI**: icono de bandeja + overlay flotante + sonidos.
@@ -18,8 +26,21 @@ nada sale a internet.
   (Piper en castellano de España, o Kokoro/Chatterbox) desde un subproceso aislado.
   Desactivado por defecto.
 
-> Diseñado y verificado para: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
-> (Blackwell `sm_120`) · PipeWire. Debería valer en cualquier Arch+KDE con GPU NVIDIA.
+## Qué está soportado
+
+kwhisper está **construido y verificado** en la máquina del autor. Este es el
+desglose honesto para que sepas qué esperar antes de instalarlo:
+
+| Equipo | Estado |
+|---|---|
+| KDE Plasma 6 Wayland · NVIDIA (incl. Blackwell `sm_120`) · PipeWire | ✅ **Verificado** — dictado casi instantáneo, overlay, detección de terminal, acentos fiables |
+| KDE Plasma 6 Wayland · **sin NVIDIA / solo CPU** | 🟡 **Funciona (fallback en CPU)** — pon `[stt] device = "cpu"`, `compute_type = "int8"` y un modelo más pequeño (`small` es el punto dulce). Verificado: `small` transcribe a ~0,2× tiempo real en una CPU moderna multinúcleo (varias veces más rápido de lo que hablas), con los acentos intactos. No es el camino diario por GPU del autor, pero es usable a diario |
+| Otros compositores Wayland (GNOME, Sway…) | 🧪 **Experimental** — el pegado básico (wl-clipboard + ydotool) puede ir, pero el **overlay anclado y la detección de terminal dependen de KWin**. Sin probar |
+| X11 | ❌ No es el objetivo |
+
+Las notas de diseño de abajo explican *por qué* el equipo verificado parece tan
+específico: son soluciones a problemas de NVIDIA-Blackwell y KWin-sobre-Wayland, no
+requisitos arbitrarios.
 
 ---
 
@@ -43,9 +64,16 @@ Tres trampas de Wayland/Blackwell que condicionan el diseño:
 
 ## Requisitos
 
-- KDE Plasma 6 sobre Wayland, Arch/CachyOS.
-- GPU NVIDIA con driver reciente (probado en 610 / serie 50xx). 16 GB VRAM sobran.
-- `uv`, `ollama` (con `gemma3`), `pipewire`.
+- Una **sesión Wayland** (KDE Plasma 6 recomendado — es donde el overlay, la
+  detección de terminal y los acentos están verificados). Arch/CachyOS es la base
+  probada.
+- Un **micrófono** y PipeWire.
+- **GPU opcional**: una GPU NVIDIA (driver reciente; probado en la serie 50xx, 16 GB
+  de VRAM sobran) da dictado casi instantáneo. Sin ella, kwhisper recurre a la CPU
+  — más lento, así que elige un modelo más pequeño (`small`/`medium`).
+- `uv`, `pipewire`. **`ollama` (con `gemma3`) es opcional** — solo añade la
+  clasificación de comandos y la corrección de puntuación; pon `[llm] enabled = false`
+  para dictado crudo.
 
 ## Instalación
 
