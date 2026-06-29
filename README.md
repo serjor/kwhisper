@@ -2,15 +2,23 @@
 
 **Languages:** [English](README.md) · [Español](README.es.md)
 
-**Local** Wispr Flow-style voice dictation for **KDE Plasma 6 (Wayland)**.
+**Local, private voice dictation for Linux** — a free & open-source alternative to
+Wispr Flow, Dragon and cloud "voice typing". Hold a key, speak, release → the text
+appears in whatever window is focused. **Everything runs on your machine: your
+voice never leaves your computer.** Polished on **KDE Plasma 6 (Wayland)**, but the
+core dictation runs without an NVIDIA GPU too.
 
-You hold down a key, speak, release it → the text appears in the focused window.
-A local LLM decides whether what you said is **dictation** (it gets typed) or a
-**command** (it gets executed: open apps, press keys). Everything runs on your
-machine: nothing leaves the internet.
+<!-- TODO: a 20–30 s demo (GIF/WebM) belongs right here — it's worth more than any
+     paragraph. Show: dictating a sentence with accents, an "open firefox" command,
+     and the spoken question mode.   ![kwhisper demo](docs/demo.gif)  -->
 
-- **STT**: `faster-whisper` (`large-v3-turbo`, float16) on an NVIDIA GPU.
-- **Dictation/command classification**: Ollama (`gemma3`).
+An **optional** local LLM decides whether what you said is **dictation** (it gets
+typed) or a **command** (it gets executed: open apps, press keys). Turn it off and
+you get plain, fully private dictation.
+
+- **STT**: `faster-whisper` — an NVIDIA GPU gives near-instant results, or it runs
+  on **CPU** if you don't have one.
+- **Dictation/command classification** *(optional)*: Ollama (`gemma3`).
 - **Activation**: push-to-talk via `evdev` (hold the key down).
 - **Injection**: clipboard + `Ctrl+V` (Spanish accents 100% reliable in KWin).
 - **UI**: tray icon + floating overlay + sounds.
@@ -18,8 +26,20 @@ machine: nothing leaves the internet.
   (Piper in Castilian Spanish, or Kokoro/Chatterbox) from an isolated subprocess.
   Off by default.
 
-> Designed and verified for: CachyOS/Arch · KDE Plasma 6.7 Wayland · RTX 5070 Ti
-> (Blackwell `sm_120`) · PipeWire. Should work on any Arch+KDE with an NVIDIA GPU.
+## What's supported
+
+kwhisper is **built and verified** on the author's machine. Here's the honest
+breakdown so you know what to expect before installing:
+
+| Setup | Status |
+|---|---|
+| KDE Plasma 6 Wayland · NVIDIA (incl. Blackwell `sm_120`) · PipeWire | ✅ **Verified** — near-instant dictation, overlay, terminal detection, reliable accents |
+| KDE Plasma 6 Wayland · **no NVIDIA / CPU-only** | 🟡 **Works (CPU fallback)** — set `[stt] device = "cpu"`, `compute_type = "int8"` and a smaller model (`small` is the sweet spot). Verified: `small` transcribes at ~0.2× real-time on a modern multi-core CPU (i.e. several times faster than you speak), accents intact. Not the author's daily GPU path, but usable day-to-day |
+| Other Wayland compositors (GNOME, Sway…) | 🧪 **Experimental** — basic paste (wl-clipboard + ydotool) may work, but the **anchored overlay and terminal detection rely on KWin**. Untested |
+| X11 | ❌ Not targeted |
+
+The design notes below explain *why* the verified setup looks so specific: they are
+NVIDIA-Blackwell and KWin-on-Wayland workarounds, not arbitrary requirements.
 
 ---
 
@@ -44,9 +64,14 @@ Three Wayland/Blackwell pitfalls that shape the design:
 
 ## Requirements
 
-- KDE Plasma 6 on Wayland, Arch/CachyOS.
-- NVIDIA GPU with a recent driver (tested on 610 / 50xx series). 16 GB VRAM is plenty.
-- `uv`, `ollama` (with `gemma3`), `pipewire`.
+- A **Wayland session** (KDE Plasma 6 recommended — that's where the overlay,
+  terminal detection and accents are verified). Arch/CachyOS is the tested base.
+- A **microphone** and PipeWire.
+- **GPU optional**: an NVIDIA GPU (recent driver; tested on the 50xx series, 16 GB
+  VRAM is plenty) gives near-instant dictation. Without one, kwhisper falls back to
+  CPU — slower, so pick a smaller model (`small`/`medium`).
+- `uv`, `pipewire`. **`ollama` (with `gemma3`) is optional** — it only adds command
+  classification and punctuation fixing; set `[llm] enabled = false` for raw dictation.
 
 ## Installation
 
@@ -136,6 +161,22 @@ With `[tts] enabled = true` (install the extra first, see Installation):
 
 The neural engines run in an **isolated subprocess** so torch (Chatterbox) can't
 break Blackwell's faster-whisper: if they fail, only TTS goes down, never dictation.
+
+### Personal dictionary — it adapts to you
+
+kwhisper keeps a personal dictionary (`~/.config/kwhisper/dictionary.toml`) that
+both **biases recognition** towards your own terms (names, jargon, acronyms) and
+**fixes recurring mistakes** (literal `wrong → right` rules applied before pasting).
+
+You teach it from the tray:
+
+- **Correct last dictation…** — opens an editable copy of what was just pasted;
+  fix it to how it should have read and kwhisper learns the words you changed
+  (rare terms only — proper nouns and jargon, never everyday words). Wayland
+  forbids silently reading another app's text field (the trick Wispr Flow uses on
+  macOS/Windows), so you bring the text to the dialog; the learning is automatic.
+- **Edit dictionary…** — open the TOML to add or prune terms by hand (restart the
+  daemon after manual edits).
 
 ## Configuration
 

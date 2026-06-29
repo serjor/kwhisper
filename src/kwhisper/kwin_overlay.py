@@ -64,35 +64,61 @@ class KWinOverlayPlacer:
         self._title = title
         self._margin = int(margin)
         self._gdbus = shutil.which("gdbus")
+        # Serialises installs so two never interleave their unload/load/run.
+        self._lock = threading.Lock()
 
     def install(self) -> None:
-        """Install the script without blocking the Qt thread (gdbus ~100 ms)."""
+        """Install the script at startup, reloading any stale version (gdbus ~100 ms)."""
+        self._spawn(reload=True)
+
+    def ensure(self) -> None:
+        """Make sure the script is live WITHOUT disturbing an already-loaded copy.
+
+        Called before each recording: the one-shot startup install is fragile (it
+        can lose the race with KWin/the bus just after a restart, and it is not
+        re-run when KWin itself restarts), which leaves the pill at KWin's centred
+        default. Here ``loadScript`` returns -1 when the plugin is already loaded,
+        so we no-op and the live ``windowAdded`` handler keeps placing the pill
+        with no flicker; only when it is genuinely missing do we load+run it.
+        """
+        self._spawn(reload=False)
+
+    # ---- internals ----
+    def _spawn(self, *, reload: bool) -> None:
         if not self._gdbus:
             log.debug("gdbus not found; overlay will use KWin's default placement.")
             return
-        threading.Thread(target=self._install, name="kwhisper-overlay-place",
-                         daemon=True).start()
+        threading.Thread(target=self._install, kwargs={"reload": reload},
+                         name="kwhisper-overlay-place", daemon=True).start()
 
-    # ---- internals ----
-    def _install(self) -> None:
-        path = self._write_script()
-        if path is None:
+    def _install(self, *, reload: bool) -> None:
+        # Drop overlapping installs (e.g. ensure() firing during a startup install).
+        if not self._lock.acquire(blocking=False):
             return
         try:
-            # Reload semantics mirror window.py: KWin won't re-run an already
-            # loaded script, so unload first to keep installs idempotent.
-            self._gdbus_call(_KWIN_SCRIPTING, "org.kde.kwin.Scripting.unloadScript", _PLUGIN)
+            path = self._write_script()
+            if path is None:
+                return
+            if reload:
+                # KWin won't re-run an already-loaded script, so unload first to
+                # pick up a new script version on daemon startup. (Safe here: the
+                # overlay is not shown yet, so the brief gap causes no flicker.)
+                self._gdbus_call(_KWIN_SCRIPTING, "org.kde.kwin.Scripting.unloadScript", _PLUGIN)
             out = self._gdbus_call(_KWIN_SCRIPTING, "org.kde.kwin.Scripting.loadScript",
                                    path, _PLUGIN)
             m = re.search(r"-?\d+", out)
-            if not m or int(m.group()) < 0:
-                log.debug("overlay placement loadScript returned %r", out)
+            sid = int(m.group()) if m else -1
+            if sid < 0:
+                # Already loaded (the common ensure() path): leave the live handler
+                # alone — re-running would only add duplicate windowAdded hooks.
+                log.debug("overlay placement already loaded (%r)", out.strip())
                 return
-            sid = int(m.group())
             self._gdbus_call(f"{_KWIN_SCRIPTING}/Script{sid}", "org.kde.kwin.Script.run")
             log.debug("overlay placement script installed (id=%d)", sid)
         except Exception as exc:  # noqa: BLE001
             log.debug("Could not install the overlay placement script: %s", exc)
+        finally:
+            self._lock.release()
 
     def _gdbus_call(self, object_path: str, method: str, *args: str) -> str:
         cmd = ["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,

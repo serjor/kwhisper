@@ -33,6 +33,8 @@ class Tray:
     def __init__(self, on_toggle_enabled: Callable[[bool], None],
                  on_open_settings: Callable[[], None],
                  on_open_config: Callable[[], None],
+                 on_correct_last: Callable[[], None],
+                 on_edit_dictionary: Callable[[], None],
                  on_quit: Callable[[], None]):
         self._tray = QSystemTrayIcon()
         self._tray.setToolTip("kwhisper")
@@ -62,6 +64,17 @@ class Tray:
         menu.addAction(self._cfg_action)
 
         menu.addSeparator()
+
+        # Personal dictionary: teach a correction from the last dictation, or
+        # edit the raw term/replacement list by hand.
+        self._correct_action = QAction(t("tray.correct_last"))
+        self._correct_action.triggered.connect(on_correct_last)
+        menu.addAction(self._correct_action)
+        self._dict_action = QAction(t("tray.edit_dictionary"))
+        self._dict_action.triggered.connect(on_edit_dictionary)
+        menu.addAction(self._dict_action)
+
+        menu.addSeparator()
         self._quit_action = QAction(t("tray.quit"))
         self._quit_action.triggered.connect(on_quit)
         menu.addAction(self._quit_action)
@@ -77,6 +90,8 @@ class Tray:
             t("dictation.on") if self._enabled_action.isChecked() else t("dictation.off"))
         self._settings_action.setText(t("settings.menu"))
         self._cfg_action.setText(t("tray.edit_config"))
+        self._correct_action.setText(t("tray.correct_last"))
+        self._dict_action.setText(t("tray.edit_dictionary"))
         self._quit_action.setText(t("tray.quit"))
         self.set_state(self._state)
 

@@ -50,6 +50,7 @@ class KWhisper:
         # --- components (without importing Qt here) ---
         from .audio import AudioRecorder
         from .commands import CommandExecutor
+        from .dictionary import PersonalDictionary
         from .feedback import Feedback
         from .inject import TextInjector
         from .llm import IntentRouter
@@ -62,6 +63,13 @@ class KWhisper:
         self.injector = TextInjector(cfg.inject)
         self.executor = CommandExecutor(cfg.commands)
         self.feedback = Feedback(cfg.ui)
+        # Personal dictionary: biases recognition (vocab → initial_prompt) and
+        # fixes recurring mistakes (wrong→right) before pasting. Learns from the
+        # "Correct last dictation" dialog. Never fatal: a bad file loads empty.
+        self.dictionary = PersonalDictionary()
+        self.dictionary.load()
+        # Last dictated text (post-replacements), for the correction dialog.
+        self._last_dictation: str | None = None
         # Voice output (spoken feedback + answers). Inert unless cfg.tts.enabled;
         # the neural engines live in an isolated subprocess spawned on first use.
         self.tts = TTSPlayer(cfg.tts)
@@ -70,6 +78,9 @@ class KWhisper:
         # Created by setup_ui() based on cfg.ui.overlay; defaulted here so the
         # attribute always exists (the worker checks it before injecting).
         self.overlay = None
+        # Anchors the overlay bottom-centre via KWin; created in setup_ui() only
+        # when the overlay is enabled. Defaulted so _on_start can check it.
+        self._overlay_placer = None
 
     # ---------- lifecycle ----------
     def setup_ui(self) -> None:
@@ -78,7 +89,8 @@ class KWhisper:
 
         self.overlay = Overlay() if self.cfg.ui.overlay else None
         self.tray = Tray(self._on_toggle_enabled, self._on_open_settings,
-                         self._on_open_config, self._on_quit)
+                         self._on_open_config, self._on_correct_last,
+                         self._on_edit_dictionary, self._on_quit)
 
         self.ctrl.state.connect(self.tray.set_state)
         self.ctrl.notify.connect(self._do_notify)
@@ -183,6 +195,12 @@ class KWhisper:
             self.ctrl.notify.emit("kwhisper", t("mic.error", error=exc))
             return False
         self.feedback.play("start")
+        # Re-assert the bottom-centre anchor before the pill maps. The KWin
+        # placement script can be missing (startup race) or gone (KWin restarted);
+        # ensure() reloads it only when needed, so the pill never silently falls
+        # back to KWin's centred default. Idempotent and off the hotkey thread.
+        if self._overlay_placer is not None:
+            self._overlay_placer.ensure()
         self.ctrl.overlay.emit("recording", t("overlay.recording"))
         self.ctrl.state.emit("recording")
         return True
@@ -213,7 +231,7 @@ class KWhisper:
             if not self.stt_ready.wait(timeout=30):
                 self.ctrl.notify.emit("kwhisper", t("model.loading"))
                 return
-            text = self.stt.transcribe(audio)
+            text = self.stt.transcribe(audio, bias_terms=self.dictionary.vocab_terms())
             if not text:
                 self.ctrl.notify.emit("kwhisper", t("no_speech"))
                 return
@@ -251,11 +269,16 @@ class KWhisper:
                 self.ctrl.notify.emit(t("notify.command"), msg)
                 self.tts.speak_feedback(msg)  # A: read the result aloud (Kokoro)
             else:
+                # Apply the personal dictionary's literal fixes (wrong→right)
+                # last, so recurring mistakes are corrected even if the LLM left
+                # them. Remember the result so the user can teach corrections.
+                final = self.dictionary.apply_replacements(intent.text or text)
+                self._last_dictation = final
                 # Hide the overlay BEFORE injecting so it does not keep the
                 # keyboard focus under KWin Wayland (otherwise the Ctrl+Shift+V
                 # would go to the overlay and nothing would be pasted in the target window).
                 self._hide_overlay_before_inject()
-                self.injector.inject(intent.text or text)
+                self.injector.inject(final)
         except Exception as exc:  # noqa: BLE001
             log.exception("Pipeline error")
             self.ctrl.overlay.emit("error", t("overlay.error"))
@@ -350,6 +373,42 @@ class KWhisper:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:  # noqa: BLE001
             log.exception("Could not open the config")
+
+    def _on_correct_last(self) -> None:
+        """Teach the dictionary from the last dictation (Qt thread).
+
+        Opens an editable copy of what was pasted; the words the user changes are
+        diffed, filtered to rare terms and learned. Imitates Wispr Flow's
+        auto-learning, but the user brings the text to us (Wayland can't read it).
+        """
+        from PySide6.QtWidgets import QDialog
+
+        from .correction_dialog import CorrectionDialog
+        from .dictionary import diff_words
+        if not self._last_dictation:
+            self.ctrl.notify.emit("kwhisper", t("correction.none"))
+            return
+        # Re-read the file so hand edits made meanwhile are not clobbered.
+        self.dictionary.load()
+        original = self._last_dictation
+        dlg = CorrectionDialog(original)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        learned = self.dictionary.learn(diff_words(original, dlg.corrected_text()))
+        self.ctrl.notify.emit(
+            "kwhisper",
+            t("correction.learned", n=learned) if learned else t("correction.nothing_learned"))
+
+    def _on_edit_dictionary(self) -> None:
+        from .dictionary import DICTIONARY_PATH
+        try:
+            if not DICTIONARY_PATH.exists():
+                self.dictionary.save()  # create the file (with its header) first
+            self._dict_proc = subprocess.Popen(
+                ["xdg-open", str(DICTIONARY_PATH)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not open the dictionary")
 
     def _on_quit(self) -> None:
         from PySide6.QtWidgets import QApplication
