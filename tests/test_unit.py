@@ -49,6 +49,15 @@ def test_config_defaults():
     assert cfg.inject.method == "clipboard"
 
 
+def test_classify_timeout_scales_and_is_capped():
+    from kwhisper.llm import _classify_timeout
+    assert _classify_timeout(0, 8.0) == 12.0        # short → cold-start floor
+    assert _classify_timeout(20, 8.0) == 12.4       # 12 + 0.02*20
+    assert _classify_timeout(2000, 8.0) == 52.0     # long → scaled (12 + 40)
+    assert _classify_timeout(100000, 8.0) == 60.0   # scaled part capped at 60s
+    assert _classify_timeout(0, 90.0) == 90.0       # an explicit high base wins
+
+
 def test_intent_fallback_to_dictation():
     # The default Intent model is dictation (what the fallback uses).
     from kwhisper.llm import Intent

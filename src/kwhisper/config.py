@@ -58,6 +58,8 @@ class LLMConfig(BaseModel):
     enabled: bool = True
     host: str = "http://127.0.0.1:11434"
     model: str = "gemma3"
+    # Minimum HTTP timeout (s). Classification raises it automatically for long
+    # dictations and Ollama cold starts (see llm._classify_timeout).
     timeout: float = 8.0
     # ADVANCED. Empty = use the built-in, tested system prompt (recommended).
     # A custom value overrides it and can BREAK command/dictation classification.
@@ -171,7 +173,7 @@ initial_prompt = ""        # e.g.: "kubernetes, pull request, deploy, commit"
 enabled = true
 host = "http://127.0.0.1:11434"
 model = "gemma3"
-timeout = 8.0
+timeout = 8.0              # minimum; classify scales it up for long text / cold starts
 # ADVANCED — leave empty ("") to use the built-in, tested prompt (recommended).
 # A custom prompt overrides it and can BREAK command classification and
 # dictation punctuation. The Settings dialog can restore the default for you.
