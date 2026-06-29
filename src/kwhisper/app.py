@@ -70,6 +70,9 @@ class KWhisper:
         # Created by setup_ui() based on cfg.ui.overlay; defaulted here so the
         # attribute always exists (the worker checks it before injecting).
         self.overlay = None
+        # Anchors the overlay bottom-centre via KWin; created in setup_ui() only
+        # when the overlay is enabled. Defaulted so _on_start can check it.
+        self._overlay_placer = None
 
     # ---------- lifecycle ----------
     def setup_ui(self) -> None:
@@ -183,6 +186,12 @@ class KWhisper:
             self.ctrl.notify.emit("kwhisper", t("mic.error", error=exc))
             return False
         self.feedback.play("start")
+        # Re-assert the bottom-centre anchor before the pill maps. The KWin
+        # placement script can be missing (startup race) or gone (KWin restarted);
+        # ensure() reloads it only when needed, so the pill never silently falls
+        # back to KWin's centred default. Idempotent and off the hotkey thread.
+        if self._overlay_placer is not None:
+            self._overlay_placer.ensure()
         self.ctrl.overlay.emit("recording", t("overlay.recording"))
         self.ctrl.state.emit("recording")
         return True
