@@ -162,6 +162,22 @@ With `[tts] enabled = true` (install the extra first, see Installation):
 The neural engines run in an **isolated subprocess** so torch (Chatterbox) can't
 break Blackwell's faster-whisper: if they fail, only TTS goes down, never dictation.
 
+### Personal dictionary — it adapts to you
+
+kwhisper keeps a personal dictionary (`~/.config/kwhisper/dictionary.toml`) that
+both **biases recognition** towards your own terms (names, jargon, acronyms) and
+**fixes recurring mistakes** (literal `wrong → right` rules applied before pasting).
+
+You teach it from the tray:
+
+- **Correct last dictation…** — opens an editable copy of what was just pasted;
+  fix it to how it should have read and kwhisper learns the words you changed
+  (rare terms only — proper nouns and jargon, never everyday words). Wayland
+  forbids silently reading another app's text field (the trick Wispr Flow uses on
+  macOS/Windows), so you bring the text to the dialog; the learning is automatic.
+- **Edit dictionary…** — open the TOML to add or prune terms by hand (restart the
+  daemon after manual edits).
+
 ## Configuration
 
 `~/.config/kwhisper/config.toml` (created automatically the first time). After

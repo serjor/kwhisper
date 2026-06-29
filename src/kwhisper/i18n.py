@@ -68,7 +68,17 @@ _CATALOG: dict[str, dict[str, str]] = {
         "tray.error": "kwhisper: error",
         "tray.disabled": "kwhisper: disabled",
         "tray.edit_config": "Edit configuration…",
+        "tray.correct_last": "Correct last dictation…",
+        "tray.edit_dictionary": "Edit dictionary…",
         "tray.quit": "Quit",
+        # --- correction dialog (personal dictionary) ---
+        "correction.title": "kwhisper — Correct last dictation",
+        "correction.intro": "Edit the text to how it should have been. kwhisper "
+                            "learns the words you change (proper nouns, jargon) and "
+                            "fixes them automatically next time.",
+        "correction.none": "Nothing to correct yet: dictate something first.",
+        "correction.learned": "Learned {n} new term(s) for your dictionary.",
+        "correction.nothing_learned": "No new terms learned from that correction.",
         # --- settings dialog ---
         "settings.menu": "Settings…",
         "settings.title": "kwhisper — Settings",
@@ -238,7 +248,17 @@ _CATALOG: dict[str, dict[str, str]] = {
         "tray.error": "kwhisper: error",
         "tray.disabled": "kwhisper: desactivado",
         "tray.edit_config": "Editar configuración…",
+        "tray.correct_last": "Corregir último dictado…",
+        "tray.edit_dictionary": "Editar diccionario…",
         "tray.quit": "Salir",
+        # --- correction dialog (personal dictionary) ---
+        "correction.title": "kwhisper — Corregir último dictado",
+        "correction.intro": "Edita el texto a como debería haber quedado. kwhisper "
+                            "aprende las palabras que cambies (nombres propios, jerga) "
+                            "y las corregirá automáticamente la próxima vez.",
+        "correction.none": "Aún no hay nada que corregir: dicta algo primero.",
+        "correction.learned": "Aprendidos {n} término(s) nuevo(s) para tu diccionario.",
+        "correction.nothing_learned": "No se aprendió ningún término nuevo de esa corrección.",
         # --- settings dialog ---
         "settings.menu": "Ajustes…",
         "settings.title": "kwhisper — Ajustes",

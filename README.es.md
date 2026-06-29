@@ -165,6 +165,24 @@ Los motores neuronales corren en un **subproceso aislado** para que torch
 (Chatterbox) no rompa el faster-whisper de Blackwell: si fallan, solo cae el TTS,
 nunca el dictado.
 
+### Diccionario personal — se adapta a ti
+
+kwhisper mantiene un diccionario personal (`~/.config/kwhisper/dictionary.toml`)
+que **sesga el reconocimiento** hacia tus propios términos (nombres, jerga,
+acrónimos) y **corrige errores recurrentes** (reglas literales `mal → bien`
+aplicadas antes de pegar).
+
+Lo enseñas desde la bandeja:
+
+- **Corregir último dictado…** — abre una copia editable de lo que se acaba de
+  pegar; arréglalo a como debería haber quedado y kwhisper aprende las palabras
+  que cambies (solo términos «raros»: nombres propios y jerga, nunca palabras
+  comunes). Wayland prohíbe leer en silencio el campo de texto de otra aplicación
+  (el truco que usa Wispr Flow en macOS/Windows), así que tú traes el texto al
+  diálogo; el aprendizaje es automático.
+- **Editar diccionario…** — abre el TOML para añadir o quitar términos a mano
+  (reinicia el daemon tras editarlo a mano).
+
 ## Configuración
 
 `~/.config/kwhisper/config.toml` (se crea solo la primera vez). Tras editar:

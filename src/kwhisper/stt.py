@@ -87,7 +87,17 @@ class STTEngine:
         except Exception as exc:  # noqa: BLE001
             log.warning("Warm-up failed (non-critical): %s", exc)
 
-    def transcribe(self, audio: np.ndarray) -> str:
+    def _compose_prompt(self, bias_terms: list[str] | None) -> str | None:
+        """Combine the configured initial_prompt with the personal dictionary
+        terms (biasing). Returns None when both are empty."""
+        parts = []
+        if self.cfg.initial_prompt.strip():
+            parts.append(self.cfg.initial_prompt.strip())
+        if bias_terms:
+            parts.append(", ".join(bias_terms))
+        return ". ".join(parts) if parts else None
+
+    def transcribe(self, audio: np.ndarray, bias_terms: list[str] | None = None) -> str:
         if self._model is None:
             raise RuntimeError("STTEngine.load() was not called")
         if audio.size == 0:
@@ -98,7 +108,7 @@ class STTEngine:
             language=self.cfg.language or None,
             beam_size=self.cfg.beam_size,
             vad_filter=self.cfg.vad_filter,
-            initial_prompt=self.cfg.initial_prompt or None,
+            initial_prompt=self._compose_prompt(bias_terms),
         )
         text = " ".join(seg.text.strip() for seg in segments).strip()
         # Whisper sometimes leaves double spaces when joining segments.

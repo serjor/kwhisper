@@ -117,6 +117,76 @@ def test_i18n_catalogs_have_same_keys():
     assert set(_CATALOG["en"]) == set(_CATALOG["es"])
 
 
+# --- personal dictionary -------------------------------------------------- #
+def test_diff_words_single_substitution():
+    from kwhisper.dictionary import diff_words
+    # One word swapped for one word → one learnable pair.
+    assert diff_words("voy a usar cubernetes hoy",
+                      "voy a usar Kubernetes hoy") == [("cubernetes", "Kubernetes")]
+
+
+def test_diff_words_ignores_inserts_and_multiword():
+    from kwhisper.dictionary import diff_words
+    # An inserted word is not a 1:1 substitution.
+    assert diff_words("hola mundo", "hola gran mundo") == []
+    # A two-word block replaced by two words is not learnable as a single term.
+    assert diff_words("a b c", "x y c") == []
+
+
+def test_is_learnable_keeps_rare_drops_common():
+    from kwhisper.dictionary import is_learnable
+    assert is_learnable("cubernetes", "Kubernetes")    # proper-noun-ish → kept
+    assert is_learnable("disrut", "Disroot")           # capitalised name → kept
+    assert not is_learnable("de", "del")               # stopword source → dropped
+    assert not is_learnable("y", "Y")                  # stopword casing churn → dropped
+    assert not is_learnable("ab", "cd")                # too short → dropped
+    assert not is_learnable("igual", "igual")          # no change → dropped
+
+
+def test_apply_replacements_word_boundary_and_case():
+    from kwhisper.dictionary import PersonalDictionary, Replacement
+    d = PersonalDictionary(path=None)
+    d._replacements = [Replacement(wrong="cubernetes", right="Kubernetes")]
+    # Case-insensitive match, both occurrences fixed…
+    assert d.apply_replacements("uso cubernetes y Cubernetes") == "uso Kubernetes y Kubernetes"
+    # …but only on whole words (no substring inside another token).
+    assert d.apply_replacements("precubernetes") == "precubernetes"
+
+
+def test_vocab_terms_respects_limit():
+    from kwhisper.dictionary import PersonalDictionary
+    d = PersonalDictionary(path=None)
+    d._vocab = [f"term{i}" for i in range(100)]
+    assert d.vocab_terms(limit=3) == ["term0", "term1", "term2"]
+
+
+def test_dictionary_roundtrip_and_learn(tmp_path):
+    from kwhisper.dictionary import PersonalDictionary
+    path = tmp_path / "dictionary.toml"
+    d = PersonalDictionary(path=path)
+    # Only the rare pair is learned; the common one is filtered out.
+    assert d.learn([("cubernetes", "Kubernetes"), ("que", "qué")]) == 1
+    # Re-learning the same pair adds nothing new but bumps its count.
+    assert d.learn([("cubernetes", "Kubernetes")]) == 0
+    # Persisted and reloadable.
+    d2 = PersonalDictionary(path=path)
+    d2.load()
+    assert d2.vocab_terms() == ["Kubernetes"]
+    assert len(d2._replacements) == 1
+    assert d2._replacements[0].count == 2
+    assert d2._replacements[0].source == "auto"
+
+
+def test_dictionary_malformed_loads_empty(tmp_path):
+    from kwhisper.dictionary import PersonalDictionary
+    path = tmp_path / "dictionary.toml"
+    path.write_text("this is not [[[ valid toml", encoding="utf-8")
+    d = PersonalDictionary(path=path)
+    d.load()  # must not raise (a bad dictionary never kills the daemon)
+    assert d.vocab_terms() == []
+    assert d._replacements == []
+
+
 def test_save_settings_roundtrip_preserves_comments(tmp_path):
     # The Settings dialog persists a subset of keys; everything else and all the
     # explanatory comments must survive the round-trip.
