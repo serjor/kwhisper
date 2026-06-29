@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -109,6 +110,27 @@ class IntentRouter:
         msgs.append({"role": "user", "content": transcription})
         return msgs
 
+    def preload(self) -> None:
+        """Fire-and-forget: tell Ollama to load the model into VRAM right now.
+
+        Called when recording STARTS so the model is warm by the time the user
+        stops speaking: the ~5s cold start (gemma sharing VRAM with Whisper, or
+        an idle unload) then happens *during* the recording instead of being
+        added to the user's wait afterwards. Best-effort and off-thread — never
+        blocks the hotkey thread, and if Ollama is down dictation is unaffected
+        (the adaptive classify timeout still covers a too-short recording).
+        """
+        def _run() -> None:
+            try:
+                # An empty /api/generate (no prompt) loads the model without
+                # generating (Ollama replies done_reason="load"). Same model name
+                # as classify(), so the resident weights are reused there.
+                self._client.post("/api/generate", json={"model": self.cfg.model},
+                                  timeout=60.0)
+            except Exception as exc:  # noqa: BLE001  (warmup must never raise)
+                log.debug("LLM preload failed (non-critical): %s", exc)
+        threading.Thread(target=_run, name="llm-preload", daemon=True).start()
+
     def classify(self, transcription: str) -> Intent:
         """Classify; on any failure, return dictation with the raw text."""
         fallback = Intent(kind="dictation", text=transcription)
@@ -121,7 +143,7 @@ class IntentRouter:
                 "stream": False,
                 "format": _FORMAT_SCHEMA,
                 "options": {"temperature": 0},
-            })
+            }, timeout=_classify_timeout(len(transcription), self.cfg.timeout))
             resp.raise_for_status()
             content = resp.json()["message"]["content"]
             intent = Intent.model_validate_json(content)
@@ -163,6 +185,19 @@ class IntentRouter:
 
     def close(self) -> None:
         self._client.close()
+
+
+def _classify_timeout(text_len: int, base: float) -> float:
+    """HTTP timeout (s) for a classification call, adaptive to the text length.
+
+    Dictation regenerates the whole transcription (output grows with input), and
+    Ollama may reload the model into VRAM (~5 s cold start when it shares the GPU
+    with Whisper) after an idle period — so a fixed budget times out on long
+    dictations even though warm inference is ~1 s. We use a cold-start floor plus
+    a per-character margin, capped so a genuinely stuck request still fails in
+    reasonable time, but never below the user's configured ``base``.
+    """
+    return max(base, min(60.0, 12.0 + 0.02 * text_len))
 
 
 def normalize_system_prompt(text: str) -> str:

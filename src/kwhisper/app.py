@@ -201,6 +201,11 @@ class KWhisper:
         # back to KWin's centred default. Idempotent and off the hotkey thread.
         if self._overlay_placer is not None:
             self._overlay_placer.ensure()
+        # Prewarm the LLM while the user speaks: load the model into VRAM now so
+        # it is hot by the time recording stops, hiding the cold start under the
+        # recording. Best-effort, off-thread.
+        if self.router is not None:
+            self.router.preload()
         self.ctrl.overlay.emit("recording", t("overlay.recording"))
         self.ctrl.state.emit("recording")
         return True
