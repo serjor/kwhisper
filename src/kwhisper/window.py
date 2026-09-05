@@ -102,11 +102,11 @@ class WindowDetector:
     def _via_kdotool(self) -> str | None:
         try:
             wid = subprocess.run(["kdotool", "getactivewindow"],
-                                 capture_output=True, text=True, timeout=2).stdout.strip()
+                                 check=False, capture_output=True, text=True, timeout=2).stdout.strip()
             if not wid:
                 return None
             cls = subprocess.run(["kdotool", "getwindowclassname", wid],
-                                 capture_output=True, text=True, timeout=2).stdout.strip()
+                                 check=False, capture_output=True, text=True, timeout=2).stdout.strip()
             return cls.lower()
         except Exception as exc:  # noqa: BLE001
             log.debug("kdotool failed: %s", exc)
@@ -133,11 +133,11 @@ class WindowDetector:
             subprocess.run(["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,
                             "--object-path", _KWIN_SCRIPTING,
                             "--method", "org.kde.kwin.Scripting.unloadScript", _PLUGIN],
-                           capture_output=True, timeout=3)
+                           check=False, capture_output=True, timeout=3)
             out = subprocess.run(["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,
                                   "--object-path", _KWIN_SCRIPTING,
                                   "--method", "org.kde.kwin.Scripting.loadScript", path, _PLUGIN],
-                                 capture_output=True, text=True, timeout=3)
+                                 check=False, capture_output=True, text=True, timeout=3)
             m = re.search(r"-?\d+", out.stdout)
             if not m or int(m.group()) < 0:
                 log.debug("loadScript did not return a valid id: %r", out.stdout)
@@ -153,12 +153,12 @@ class WindowDetector:
         if sid is None:
             self._note_fail()
             return None
-        since = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        since = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
         try:
             subprocess.run(["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,
                             "--object-path", f"{_KWIN_SCRIPTING}/Script{sid}",
                             "--method", "org.kde.kwin.Script.run"],
-                           capture_output=True, timeout=3)
+                           check=False, capture_output=True, timeout=3)
         except Exception as exc:  # noqa: BLE001
             log.debug("KWin script run() failed: %s", exc)
             self._note_fail()
@@ -184,7 +184,7 @@ class WindowDetector:
         try:
             out = subprocess.run(
                 ["journalctl", "_COMM=kwin_wayland", "--since", since, "-o", "cat", "--no-pager"],
-                capture_output=True, text=True, timeout=2).stdout
+                check=False, capture_output=True, text=True, timeout=2).stdout
         except Exception:  # noqa: BLE001
             return None
         marker = _MARKER + nonce + ":"

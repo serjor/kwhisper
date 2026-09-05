@@ -69,6 +69,7 @@ def test_intent_fallback_to_dictation():
 def test_invalid_backend_rejected():
     # Literal: a backend with a typo must fail validation (not fall back to evdev).
     from pydantic import ValidationError
+
     from kwhisper.config import Config
     try:
         Config.model_validate({"hotkey": {"backend": "banana"}})
@@ -81,6 +82,7 @@ def test_ensure_session_bus_derives_from_runtime_dir(tmp_path=None):
     # Without DBUS_SESSION_BUS_ADDRESS but with $XDG_RUNTIME_DIR/bus present, the
     # bus address is derived (the systemd --user case that broke pasting).
     import os
+
     from kwhisper.window import ensure_session_bus
 
     saved = {k: os.environ.get(k) for k in ("DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR")}

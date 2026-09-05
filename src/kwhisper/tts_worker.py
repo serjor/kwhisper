@@ -66,6 +66,7 @@ class _Piper:
     def synth(self, text: str):
         if self._v is None:
             import os
+
             from piper import PiperVoice
             d = self.cfg["model_dir"]
             name, _, sid = self.cfg["voice"].partition("#")

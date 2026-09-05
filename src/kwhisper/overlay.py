@@ -90,7 +90,7 @@ class Overlay(QWidget):
         """Wire the live microphone level provider used by the equalizer."""
         self._level_source = source
 
-    def show_state(self, state: str, text: str) -> None:  # noqa: ARG002
+    def show_state(self, state: str, text: str) -> None:
         # ``text`` is kept for signal compatibility; the pill is intentionally
         # textless — state is conveyed by colour and animation.
         self._state = state if state in self._STATES else "processing"
@@ -149,7 +149,7 @@ class Overlay(QWidget):
             self._bars[i] += (target - self._bars[i]) * ease
 
     # ---------- painting ----------
-    def paintEvent(self, event) -> None:  # noqa: ANN001, ARG002
+    def paintEvent(self, event) -> None:
         bar_top, bar_bottom, dot_hex, glow_hex = self._STATES.get(
             self._state, self._STATES["processing"])
 

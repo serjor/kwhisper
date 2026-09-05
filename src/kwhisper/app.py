@@ -154,8 +154,8 @@ class KWhisper:
                 log.error("%s", exc)
                 self.ctrl.notify.emit("kwhisper", str(exc))
                 return
-            except Exception as exc:  # noqa: BLE001
-                log.exception("Could not start the evdev hotkey: %s", exc)
+            except Exception:
+                log.exception("Could not start the evdev hotkey")
                 self.ctrl.notify.emit("kwhisper", t("hotkey.start_failed"))
                 return
         self._listener.start()
@@ -168,7 +168,7 @@ class KWhisper:
                 self.stt_ready.set()
                 self.ctrl.state.emit("idle")
                 self.ctrl.notify.emit("kwhisper", t("ready"))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.exception("Failed to load the STT model")
                 self.ctrl.state.emit("error")
                 self.ctrl.notify.emit("kwhisper", t("stt.load_error", error=exc))
@@ -188,7 +188,7 @@ class KWhisper:
         self.tts.cancel()
         try:
             self.recorder.start()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             with self._lock:
                 self._recording = False
             log.exception("Could not start recording")
@@ -244,7 +244,7 @@ class KWhisper:
         return True
 
     # ---------- pipeline (worker thread) ----------
-    def _process(self, audio) -> None:  # noqa: ANN001
+    def _process(self, audio) -> None:
         try:
             dur = self.recorder.duration(audio)
             if dur < 0.25:
@@ -301,7 +301,7 @@ class KWhisper:
                 # would go to the overlay and nothing would be pasted in the target window).
                 self._hide_overlay_before_inject()
                 self.injector.inject(final)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.exception("Pipeline error")
             self.ctrl.overlay.emit("error", t("overlay.error"))
             self.ctrl.notify.emit("kwhisper", t("error.generic", error=exc))
@@ -393,7 +393,7 @@ class KWhisper:
             self._cfg_proc = subprocess.Popen(
                 ["xdg-open", str(CONFIG_PATH)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Could not open the config")
 
     def _on_correct_last(self) -> None:
@@ -429,7 +429,7 @@ class KWhisper:
             self._dict_proc = subprocess.Popen(
                 ["xdg-open", str(DICTIONARY_PATH)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Could not open the dictionary")
 
     def _on_quit(self) -> None:
@@ -488,7 +488,7 @@ def main() -> int:
     #  1) we register Python handlers that route to the clean shutdown (_on_quit), and
     #  2) a periodic no-op QTimer returns control to the interpreter so the
     #     signal is handled and the queued quit wakes up the event loop.
-    def _signal_shutdown(signum, _frame):  # noqa: ANN001
+    def _signal_shutdown(signum, _frame):
         log.info("Signal %s received; shutting down kwhisper.", signal.Signals(signum).name)
         app._on_quit()
 

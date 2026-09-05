@@ -241,8 +241,8 @@ class TTSPlayer:
         """Wait briefly on a killed worker so it doesn't linger as a zombie."""
         try:
             proc.wait(timeout=2)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("Could not reap TTS worker", exc_info=True)
 
     def _pump_loop(self) -> None:
         while True:

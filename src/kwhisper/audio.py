@@ -52,7 +52,7 @@ class AudioRecorder:
     _LEVEL_FLOOR_DB = -58.0
     _LEVEL_CEIL_DB = -12.0
 
-    def _callback(self, indata, frames, time_info, status):  # noqa: ANN001
+    def _callback(self, indata, frames, time_info, status):
         if status:
             log.warning("Audio status: %s", status)
         level = self._compute_level(indata)
@@ -61,7 +61,7 @@ class AudioRecorder:
                 self._frames.append(indata.copy())
                 self._level = level
 
-    def _compute_level(self, indata) -> float:  # noqa: ANN001
+    def _compute_level(self, indata) -> float:
         x = indata.astype(np.float32)
         if x.ndim > 1:  # collapse to mono for the meter
             x = x.mean(axis=1)

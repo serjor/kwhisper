@@ -36,8 +36,8 @@ def ensure_cuda_lib_path() -> None:
     try:
         # These are namespace packages (no __init__.py): __file__ is None, so we
         # must use __path__ to locate the directory containing the .so files.
-        import nvidia.cublas.lib as _cublas  # noqa: PLC0415
-        import nvidia.cudnn.lib as _cudnn  # noqa: PLC0415
+        import nvidia.cublas.lib as _cublas
+        import nvidia.cudnn.lib as _cudnn
         paths = [next(iter(_cublas.__path__)), next(iter(_cudnn.__path__))]
     except Exception:  # noqa: BLE001
         return  # using system ctranslate2 or another path: nothing to do
