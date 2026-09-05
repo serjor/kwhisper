@@ -55,10 +55,11 @@ class AudioRecorder:
     def _callback(self, indata, frames, time_info, status):  # noqa: ANN001
         if status:
             log.warning("Audio status: %s", status)
+        level = self._compute_level(indata)
         with self._lock:
             if self._recording:
                 self._frames.append(indata.copy())
-        self._level = self._compute_level(indata)
+                self._level = level
 
     def _compute_level(self, indata) -> float:  # noqa: ANN001
         x = indata.astype(np.float32)
@@ -85,15 +86,31 @@ class AudioRecorder:
             self._frames = []
             self._recording = True
         self._level = 0.0
-        self._stream = sd.InputStream(
-            samplerate=self.samplerate,
-            channels=self.channels,
-            dtype="int16",
-            device=self.device,
-            callback=self._callback,
-            blocksize=0,  # let PortAudio choose the optimal size
-        )
-        self._stream.start()
+        try:
+            self._stream = sd.InputStream(
+                samplerate=self.samplerate,
+                channels=self.channels,
+                dtype="int16",
+                device=self.device,
+                callback=self._callback,
+                blocksize=0,  # let PortAudio choose the optimal size
+            )
+            self._stream.start()
+        except Exception:
+            with self._lock:
+                self._recording = False
+            # PortAudio may wait for the callback, so close outside its lock.
+            try:
+                if self._stream is not None:
+                    self._stream.close()
+            except Exception:
+                log.exception("Could not close audio stream after failed start")
+            finally:
+                self._stream = None
+                with self._lock:
+                    self._frames = []
+                    self._level = 0.0
+            raise
         log.debug("Recording started (%d Hz, %d channel/s)", self.samplerate, self.channels)
 
     def stop(self) -> np.ndarray:
@@ -102,16 +119,24 @@ class AudioRecorder:
             return np.zeros(0, dtype=np.float32)
         with self._lock:
             self._recording = False
-        self._level = 0.0
-        if self._stream is not None:
-            try:
-                self._stream.stop()
-                self._stream.close()
-            finally:
-                self._stream = None
-        with self._lock:
-            frames = self._frames
-            self._frames = []
+        try:
+            if self._stream is not None:
+                try:
+                    self._stream.stop()
+                except Exception:
+                    try:
+                        self._stream.close()
+                    except Exception:
+                        log.exception("Could not close audio stream after failed stop")
+                    raise  # Preserve the original stop error.
+                else:
+                    self._stream.close()
+        finally:
+            self._stream = None
+            with self._lock:
+                frames = self._frames
+                self._frames = []
+                self._level = 0.0
         if not frames:
             return np.zeros(0, dtype=np.float32)
         audio = np.concatenate(frames, axis=0)

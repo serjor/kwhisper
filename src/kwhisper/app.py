@@ -218,12 +218,29 @@ class KWhisper:
             # Set EARLY under lock: closes the TOCTOU window so a new
             # push-to-talk does not start a second recording while we process.
             self._processing = True
-        audio = self.recorder.stop()
-        self.feedback.play("stop")
-        self.ctrl.overlay.emit("processing", t("overlay.processing"))
-        self.ctrl.state.emit("processing")
-        threading.Thread(target=self._process, args=(audio,),
-                         name="kwhisper-process", daemon=True).start()
+        error_key = "mic.error"
+        try:
+            audio = self.recorder.stop()
+            error_key = "error.generic"
+            self.feedback.play("stop")
+            self.ctrl.overlay.emit("processing", t("overlay.processing"))
+            self.ctrl.state.emit("processing")
+            threading.Thread(target=self._process, args=(audio,),
+                             name="kwhisper-process", daemon=True).start()
+        except Exception as exc:
+            log.exception("Could not stop recording or start processing")
+            try:
+                self.ctrl.notify.emit("kwhisper", t(error_key, error=exc))
+            finally:
+                try:
+                    # Match _process: post idle before allowing a new recording.
+                    self.ctrl.overlay.emit("", "")
+                    self.ctrl.state.emit("idle" if self.enabled else "disabled")
+                finally:
+                    with self._lock:
+                        self._processing = False
+        # The recording ended even if its audio was discarded. The portal must
+        # accept this transition so its next activation starts a new recording.
         return True
 
     # ---------- pipeline (worker thread) ----------
