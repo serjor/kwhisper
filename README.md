@@ -259,6 +259,13 @@ External processes: `ollama` (:11434), `ydotoold` (--user), KWin/PipeWire.
 - [ ] Optional panel plasmoid (status via D-Bus).
 - [ ] PKGBUILD for the AUR.
 
+## AI contribution disclosure
+
+OpenAI Codex, an AI coding assistant, wrote the audio recovery changes, regression
+tests, and Ruff fixes in [PR #13](https://github.com/serjor/kwhisper/pull/13).
+Codex also ran the automated checks under the direction of the maintainer, serjor.
+This credit applies to those contributions, not to the entire project.
+
 ## License
 
 [MPL-2.0](LICENSE) (Mozilla Public License 2.0): file-level copyleft.

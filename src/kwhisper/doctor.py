@@ -33,7 +33,7 @@ def _check_gpu() -> None:
         try:
             out = subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=5,
+                check=False, capture_output=True, text=True, timeout=5,
             ).stdout.strip()
             _line(OK, "nvidia-smi", out)
         except Exception as exc:  # noqa: BLE001
@@ -113,6 +113,7 @@ def _check_ollama() -> None:
     print("\n" + t("doctor.sec_ollama"))
     try:
         import httpx
+
         from .config import load_config
         cfg = load_config()
         r = httpx.get(f"{cfg.llm.host}/api/tags", timeout=3)

@@ -123,7 +123,7 @@ class KWinOverlayPlacer:
     def _gdbus_call(self, object_path: str, method: str, *args: str) -> str:
         cmd = ["gdbus", "call", "--session", "--dest", _KWIN_SERVICE,
                "--object-path", object_path, "--method", method, *args]
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+        return subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=3).stdout
 
     def _write_script(self) -> str | None:
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR")

@@ -50,7 +50,7 @@ class WelcomeWizard(QDialog):
             label = t(label_key) if label_key.startswith("settings.") else label_key
             self._lang.addItem(label, value)
         idx = self._lang.findData(ui_cfg.lang)
-        self._lang.setCurrentIndex(idx if idx >= 0 else 0)
+        self._lang.setCurrentIndex(max(idx, 0))
         form.addRow(t("settings.language"), self._lang)
 
         self._model = QComboBox()

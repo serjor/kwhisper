@@ -94,7 +94,7 @@ class PortalListener:
                     self._recording = False
             elif self.on_start():
                 self._recording = True
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error in portal toggle")
 
     def _fail(self, msg: str) -> None:
@@ -102,8 +102,8 @@ class PortalListener:
         if self.on_error:
             try:
                 self.on_error(msg)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:
+                log.exception("Portal error callback failed")
 
     async def _setup(self) -> None:
         from dbus_next import Variant
@@ -131,7 +131,7 @@ class PortalListener:
         req_obj = bus.get_proxy_object(_PORTAL, request_path, req_node)
         req = req_obj.get_interface("org.freedesktop.portal.Request")
 
-        def on_response(code, results):  # noqa: ANN001
+        def on_response(code, results):
             if code == 0 and "session_handle" in results:
                 session_handle["value"] = results["session_handle"].value
             done.set()
@@ -145,7 +145,7 @@ class PortalListener:
 
         try:
             await asyncio.wait_for(done.wait(), timeout=15)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._fail(t("portal.no_response"))
             return
 
@@ -163,7 +163,7 @@ class PortalListener:
             {},
         )
 
-        def on_activated(session, shortcut_id, timestamp, options):  # noqa: ANN001
+        def on_activated(session, shortcut_id, timestamp, options):
             if shortcut_id == _SHORTCUT_ID:
                 self._toggle()
 
@@ -177,7 +177,7 @@ class PortalListener:
         try:
             self._loop.run_until_complete(self._setup())
             self._loop.run_forever()
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Portal listener failure")
 
     def start(self) -> None:

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Plan — Fiabilidad del dictado</title>
+<style>
+:root{
+  --bg:#f4f6f9;--surface:#fff;--surface-2:#f8fafc;--text:#172033;--muted:#667085;
+  --line:#dce2ea;--accent:#3157d5;--accent-solid:#3157d5;--on-accent:#fff;--accent-soft:#edf1ff;--good:#16734b;
+  --accent-strong:#233fa6;--good-soft:#e9f7f0;--warn:#9a6700;--warn-soft:#fff6d8;--danger:#b42318;
+  --danger-soft:#fff0ee;--code:#eef1f5;--shadow:0 12px 35px rgba(23,32,51,.08)
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#10141d;--surface:#171d28;--surface-2:#1d2532;--text:#edf1f7;--muted:#a6b0c0;
+    --line:#303a49;--accent:#91a7ff;--accent-strong:#bec9ff;--accent-soft:#222d57;--good:#70d6aa;
+    --good-soft:#15382c;--warn:#f0c46b;--warn-soft:#3c3015;--danger:#ff9b91;
+    --danger-soft:#49231f;--code:#242d3a;--shadow:0 14px 38px rgba(0,0,0,.22)
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.58 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:clip}
+main{width:100%;max-width:74rem;min-width:0;margin:0 auto;padding:2rem 1.25rem 5rem}
+a{color:var(--accent);text-decoration-thickness:.08em;text-underline-offset:.18em}
+a:hover{text-decoration-thickness:.14em}
+a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:3px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+header,section,.phase{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+header{padding:2rem}
+section{padding:1.5rem;margin-top:1rem}
+.phase{padding:0;margin-top:1rem;overflow:hidden}
+.eyebrow{margin:0 0 .45rem;color:var(--accent);font-size:.76rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:clamp(1.85rem,5vw,3.15rem);line-height:1.08;letter-spacing:-.035em;margin:.15rem 0 .8rem;max-width:18ch}
+h2{font-size:1.32rem;line-height:1.25;margin:0 0 .85rem;letter-spacing:-.015em}
+h3{font-size:1.03rem;line-height:1.3;margin:0 0 .45rem}
+h4{font-size:.92rem;line-height:1.35;margin:0 0 .35rem}
+p{margin:.4rem 0}
+ul,ol{margin:.55rem 0;padding-left:1.2rem}
+li{margin:.3rem 0}
+.lede{max-width:68ch;font-size:1.07rem;color:var(--muted);margin:0}
+.meta,.stat-grid,.decision-grid,.decision-facts,.option-grid,.impact-grid,.phase-facts,.triptych{display:grid;gap:.75rem}
+.meta{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:1.4rem}
+.meta div,.stat,.decision,.decision-fact,.option,.impact,.fact,.triptych article{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:.8rem .9rem}
+dt,.label{color:var(--muted);font-size:.72rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+dd{margin:.18rem 0 0;font-weight:650}
+.status{display:inline-flex;align-items:center;gap:.35rem;border:1px solid currentColor;border-radius:999px;padding:.15rem .52rem;font-size:.75rem;font-weight:750;white-space:nowrap}
+.status::before{content:"";width:.42rem;height:.42rem;border-radius:50%;background:currentColor}
+.review{color:var(--warn);background:var(--warn-soft)}
+.planned{color:var(--accent);background:var(--accent-soft)}
+.active{color:var(--warn);background:var(--warn-soft)}
+.done{color:var(--good);background:var(--good-soft)}
+.blocked{color:var(--danger);background:var(--danger-soft)}
+nav{position:sticky;top:.7rem;z-index:2;max-width:74rem;margin:1rem auto;padding:.7rem .9rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+nav ul{display:flex;gap:.4rem .95rem;list-style:none;margin:0;padding:0;overflow-x:auto}
+nav li{margin:0;white-space:nowrap}
+nav a{color:var(--muted);font-size:.84rem;font-weight:650;text-decoration:none}
+nav a:hover{color:var(--accent)}
+.decision-grid{grid-template-columns:1.2fr .8fr;margin-top:1rem}
+.decision{padding:1rem}
+.decision.primary{background:var(--accent-soft);border-color:var(--accent)}
+.decision strong{display:block;font-size:1.18rem;margin:.15rem 0 .35rem}
+.decision p,.impact p{color:var(--muted)}
+.decision-request{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:1.15rem;padding:.9rem 1rem;border:2px solid var(--accent);border-radius:11px;background:var(--surface)}
+.decision-request strong{font-size:1.08rem}
+.decision-request a{white-space:nowrap;font-weight:750}
+.decision-facts{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:.75rem}
+.decision-fact strong{display:block;margin-top:.18rem}
+.confidence{display:flex;align-items:center;gap:.45rem}
+.confidence::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--muted)}
+.confidence.high::before{background:var(--good)}
+.confidence.medium::before{background:var(--warn)}
+.confidence.low::before{background:var(--danger)}
+.callout{border-left:4px solid var(--accent);border-radius:8px;background:var(--accent-soft);padding:.85rem 1rem;margin-top:1rem}
+.callout.warning{border-color:var(--warn);background:var(--warn-soft)}
+.stat-grid{grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));margin:.8rem 0}
+.stat strong{display:block;font-size:1.08rem;margin-top:.2rem}
+.next-action{display:flex;gap:.7rem;align-items:flex-start;margin-top:.8rem}
+.next-action strong{white-space:nowrap}
+.impact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.impact{padding:1rem}
+.impact h3{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.no-change{color:var(--good);font-size:.75rem;font-weight:750;text-transform:uppercase}
+.option-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.option{position:relative;padding:1rem;display:flex;flex-direction:column}
+.option.recommended{border:2px solid var(--accent);background:var(--accent-soft)}
+.option-tag{align-self:flex-start;border-radius:999px;padding:.12rem .48rem;background:var(--accent-solid);color:var(--on-accent);font-size:.7rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.option h3{margin:.6rem 0 .25rem}
+.option>p{color:var(--muted)}
+.option dl{display:grid;grid-template-columns:5.6rem 1fr;gap:.35rem .6rem;margin:.7rem 0 1rem}
+.option dd{font-weight:600}
+.choose-when{margin-top:auto;padding-top:.65rem;border-top:1px solid var(--line);color:var(--text)!important}
+.scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.out{border-left:3px solid var(--danger);padding-left:1rem}
+.diagram-card{margin:1rem 0 0;padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.figure-heading{display:flex;justify-content:space-between;align-items:start;gap:1rem;margin-bottom:.75rem}
+.figure-heading p{color:var(--muted);max-width:68ch}
+.diagram{display:block;width:100%;height:auto;min-height:15rem;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.diagram .node-box{fill:var(--surface-2);stroke:var(--line);stroke-width:2}
+.diagram .node-box.focus{fill:var(--accent-soft);stroke:var(--accent);stroke-width:3}
+.diagram .node-title{fill:var(--text);font:700 16px ui-sans-serif,system-ui,sans-serif}
+.diagram .node-copy{fill:var(--muted);font:13px ui-sans-serif,system-ui,sans-serif}
+.diagram .edge{fill:none;stroke:var(--muted);stroke-width:2.5}
+.diagram .edge.risk{stroke:var(--danger);stroke-dasharray:7 6}
+.diagram .flow{stroke-dasharray:10 7;animation:flow 1.4s linear 2}
+.diagram-key{display:flex;flex-wrap:wrap;gap:.45rem 1rem;list-style:none;padding:0;margin:.7rem 0 0;color:var(--muted);font-size:.84rem}
+.diagram-key li{display:flex;align-items:center;gap:.35rem;margin:0}
+.key-line{width:1.7rem;border-top:3px solid var(--muted)}
+.key-line.risk{border-color:var(--danger);border-top-style:dashed}
+.timeline{display:flex;list-style:none;padding:0;margin:1rem 0;counter-reset:step}
+.timeline li{position:relative;flex:1;min-width:0;margin:0;padding:2.6rem .8rem .8rem;border:1px solid var(--line);background:var(--surface)}
+.timeline li:first-child{border-radius:10px 0 0 10px}
+.timeline li:last-child{border-radius:0 10px 10px 0}
+.timeline li::before{counter-increment:step;content:counter(step);position:absolute;top:.65rem;left:.8rem;width:1.45rem;height:1.45rem;display:grid;place-items:center;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.75rem;font-weight:800}
+.timeline li+li{border-left:0}
+.timeline strong,.timeline span{display:block}
+.timeline span{color:var(--muted);font-size:.84rem;margin-top:.25rem}
+.timeline .critical{box-shadow:inset 0 3px 0 var(--warn)}
+figcaption{margin-top:.75rem;color:var(--text);font-weight:650}
+@keyframes flow{to{stroke-dashoffset:-34}}
+table{border-collapse:separate;border-spacing:0;width:100%;max-width:100%;display:block;overflow-x:auto;margin:.65rem 0}
+thead,tbody{display:table;width:100%;table-layout:fixed}
+th,td{border-bottom:1px solid var(--line);padding:.62rem .7rem;text-align:left;vertical-align:top}
+th{background:var(--surface-2);color:var(--muted);font-size:.73rem;letter-spacing:.05em;text-transform:uppercase}
+tr:last-child td{border-bottom:0}
+code{background:var(--code);border-radius:4px;padding:.1rem .32rem;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{background:var(--code);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:.8rem 1rem;overflow-x:auto;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre code{background:none;padding:0}
+details{border-top:1px solid var(--line);margin-top:.9rem;padding-top:.8rem}
+summary{cursor:pointer;color:var(--accent);font-weight:700}
+summary::marker{color:var(--accent)}
+.phase-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.25rem 1.4rem;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.phase-number{color:var(--muted);font-size:.76rem;font-weight:750;letter-spacing:.07em;text-transform:uppercase}
+.phase-header h3{font-size:1.2rem;margin:.12rem 0 0}
+.phase-body{padding:1.3rem 1.4rem}
+.phase-facts{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:1rem}
+.fact{padding:.7rem .8rem}
+.fact strong{display:block;margin-top:.18rem}
+.plain-impact{font-size:1.02rem;margin:.85rem 0 1rem}
+.change-list td:first-child{width:30%}
+.gate{border:1px solid var(--good);background:var(--good-soft);border-radius:9px;padding:.85rem 1rem;margin:1rem 0}
+.gate h4{color:var(--good)}
+.triptych{grid-template-columns:repeat(3,minmax(0,1fr))}
+.triptych article{padding:.85rem}
+.execution-record{background:var(--surface-2);border-radius:9px;padding:0 .9rem .8rem}
+.execution-record dl{display:grid;grid-template-columns:9rem 1fr;gap:.45rem .8rem;margin:.75rem 0 0}
+.execution-record dd{font-weight:400;color:var(--muted)}
+.muted{color:var(--muted)}
+.risk-high{color:var(--danger);font-weight:750}
+.risk-med{color:var(--warn);font-weight:750}
+.checks{list-style:none;padding:0}
+.checks li{position:relative;padding-left:1.55rem}
+.checks li::before{content:"□";position:absolute;left:.1rem;color:var(--accent);font-weight:800}
+.guardrails{border-left:4px solid var(--danger)}
+footer{max-width:74rem;margin:1rem auto 0;color:var(--muted);font-size:.8rem;text-align:center}
+@media(max-width:760px){
+  main{padding:1rem .75rem 3rem}
+  header,section{padding:1.15rem}
+  .meta,.stat-grid,.decision-grid,.decision-facts,.option-grid,.impact-grid,.scope-grid,.phase-facts,.triptych{grid-template-columns:1fr}
+  .decision-request,.figure-heading{align-items:flex-start;flex-direction:column}
+  .diagram-card{overflow-x:auto}
+  .diagram{min-width:46rem}
+  .timeline{flex-direction:column}
+  .timeline li{width:100%;padding:1rem 1rem 1rem 3rem}
+  .timeline li:first-child{border-radius:10px 10px 0 0}
+  .timeline li:last-child{border-radius:0 0 10px 10px}
+  .timeline li+li{border-left:1px solid var(--line);border-top:0}
+  .timeline li::before{top:.9rem;left:.85rem}
+  nav{top:0;margin:.6rem .75rem;border-radius:9px}
+  .phase-header{padding:1rem;flex-direction:column}
+  .phase-body{padding:1rem}
+  .execution-record dl{grid-template-columns:1fr;gap:.1rem}
+  thead,tbody{min-width:42rem}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.diagram .flow{animation:none}}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--surface-2:#f5f5f5;--text:#111;--muted:#555;--line:#ccc;--shadow:none}
+  body{font-size:10pt}
+  main{max-width:none;padding:0}
+  nav{display:none}
+  header,section,.phase{box-shadow:none;break-inside:avoid}
+  .phase{break-before:page}
+  details{display:block}
+  details>*{display:block}
+  summary{display:none}
+  a{color:inherit;text-decoration:none}
+  .diagram .flow{animation:none}
+}
+</style>
+</head><body><main>
+<header id="summary">
+<p class="eyebrow">kwhisper · Plan de cambio · Tamaño S</p>
+<h1>Volver a dictar tras un fallo del micrófono</h1>
+<p class="lede">Recuperar el grabador y el estado de la aplicación cuando falla el inicio o la parada del audio, para permitir un nuevo intento sin reiniciar kwhisper.</p>
+<div class="decision-request"><div><span class="label">Decisión solicitada</span><strong>Aprobar la implementación de la fase única descrita abajo.</strong></div><a href="#phase-1">Revisar cambios y pruebas</a></div>
+<div class="decision-grid"><article class="decision primary"><span class="label">Recomendación</span><strong>Proceder con la corrección acotada</strong><p>Los fallos de recuperación del grabador se reprodujeron con un dispositivo simulado. El flujo de la aplicación también necesita liberar su estado de procesamiento ante una excepción.</p></article><article class="decision"><span class="label">Coste principal</span><strong>Pruebas de fallos y sincronización</strong><p>La limpieza debe funcionar aunque falle el propio cierre. La recuperación debe mantener sincronizados los atajos evdev y portal.</p></article></div>
+<div class="decision-facts"><article class="decision-fact"><span class="label">Esfuerzo</span><strong>Pequeño</strong></article><article class="decision-fact"><span class="label">Riesgo</span><strong>Acotado al ciclo de audio</strong></article><article class="decision-fact"><span class="label">Reversión</span><strong>Revertir el cambio de código</strong></article><article class="decision-fact"><span class="label">Confianza</span><strong class="confidence high">Alta en el diagnóstico</strong></article></div>
+<aside class="callout warning">La recuperación real de PortAudio y los dispositivos requiere validación en una sesión con micrófono. Las simulaciones prueban el estado interno, pero no sustituyen esa comprobación.</aside>
+</header>
+<nav aria-label="Contenido"><ul><li><a href="#execution-status">Estado</a></li><li><a href="#change">Evidencia</a></li><li><a href="#phase-1">Implementación</a></li><li><a href="#verification">Verificación</a></li></ul></nav>
+<section id="execution-status"><h2>Estado de ejecución</h2><div class="stat-grid"><article class="stat"><span class="label">Documento</span><strong>Código implementado · validación manual pendiente</strong></article><article class="stat"><span class="label">Progreso</span><strong>0 de 1 fases</strong></article><article class="stat"><span class="label">Fase activa o bloqueada</span><strong>Fase 1 · blocked (validación)</strong></article><article class="stat"><span class="label">Decisiones técnicas abiertas</span><strong>0</strong></article><article class="stat"><span class="label">Actualización</span><strong>2026-09-05</strong></article></div>
+<p class="next-action"><strong>Siguiente acción:</strong><span>Validar con micrófono en KDE antes de declarar cumplida la puerta de producción.</span></p>
+<p>El usuario confirmó con «ok» el alcance de fiabilidad y la ruta de este documento. Después autorizó la implementación con «haz los cambios».</p>
+<p>Base examinada: <code>0a92ee864d1008a7ead5e4e583910bf1f84c03bd</code>. Directorio: <code>/home/serjor/.t3/worktrees/kwhisper/t3code-1783d8c7</code>. El árbol de trabajo estaba limpio antes de crear este HTML.</p>
+<details><summary>Protocolo para retomar el trabajo</summary><ol><li>Leer todo el HTML y las evidencias de las fases terminadas.</li><li>Comparar la base registrada y el árbol actual; preservar los cambios ajenos.</li><li>Tras la aprobación, seleccionar la primera fase que no esté terminada. Marcarla <code>in_progress</code> y registrar fecha y sesión antes de editar código.</li><li>Usar estados <code>planned</code>, <code>in_progress</code>, <code>done</code> y <code>blocked</code>. Solo una fase puede estar en curso; no avanzar sobre una fase bloqueada.</li><li>Mantener inmutable la especificación aprobada. Registrar cambios reales, resultados y desviaciones en el registro de ejecución. Las correcciones de referencias factuales deben quedar registradas.</li><li>Solicitar dirección si un descubrimiento cambia alcance, contrato, riesgo, límites de fase o resultado aprobado.</li><li>Marcar <code>done</code> solo con evidencia de la puerta de producción; si no puede cumplirse, registrar <code>blocked</code>, intentos, causa y decisión necesaria. Actualizar también el panel y el siguiente paso.</li></ol></details></section>
+<section id="impact"><h2>Impacto y límites</h2><div class="impact-grid"><article class="impact"><h3>Uso</h3><p>Un fallo de captura se notificará y permitirá volver a pulsar el atajo. El audio de una captura fallida se descartará para evitar transcribir datos parciales como si fueran completos.</p></article><article class="impact"><h3>Datos y configuración</h3><p>Sin cambios en TOML, diccionario, modelos ni formatos de audio. Se conserva la interfaz de <code>AudioRecorder.start()</code> y <code>stop()</code>.</p></article><article class="impact"><h3>Desarrollo</h3><p>Pruebas con flujos de audio simulados, sin GPU, Ollama ni sesión gráfica. Añadir NumPy al entorno de pruebas de CI para ejercitar las matrices reales de audio.</p></article><article class="impact"><h3>Operación</h3><p>Conservar la notificación traducida existente para errores de micrófono. Reiniciar el proceso para cargar la corrección; no hay migración.</p></article></div><p>Fuera de alcance: rediseño visual, cambios de STT/LLM/TTS, reconexión de teclados, nuevas funciones y refactorizaciones generales.</p></section>
+<section id="change"><h2>Del fallo actual al comportamiento esperado</h2><table><thead><tr><th>Evidencia examinada</th><th>Estado actual</th><th>Resultado exigido</th></tr></thead><tbody>
+<tr><td><code>src/kwhisper/audio.py:81</code> · <code>AudioRecorder.start</code></td><td>Activa <code>_recording</code> antes de construir e iniciar el flujo, sin recuperación de excepciones. Reproducción: tras fallar la construcción queda <code>recording=True</code>; el segundo inicio retorna sin abrir un flujo.</td><td>Todo fallo de construcción o inicio deja el grabador inactivo, sin datos antiguos, y permite abrir un flujo nuevo.</td></tr>
+<tr><td><code>src/kwhisper/audio.py:99</code> · <code>AudioRecorder.stop</code></td><td>Si <code>stream.stop()</code> falla, se omite <code>close()</code> y se pierde la referencia en el bloque <code>finally</code>. Reproducido con un flujo que lanza en stop.</td><td>Intentar siempre el cierre; limpiar el estado y propagar el error original sin procesar la captura fallida.</td></tr>
+<tr><td><code>src/kwhisper/app.py:213</code> · <code>KWhisper._on_stop</code></td><td>Fija <code>_processing=True</code> antes de detener el audio. Si hay excepción, no se llega al trabajador ni a su limpieza en <code>_process</code> (líneas 291–298).</td><td>Notificar el error, retirar el overlay, restaurar idle/disabled y liberar el bloqueo lógico de procesamiento.</td></tr>
+<tr><td><code>src/kwhisper/hotkey/portal_listener.py:87</code> · <code>PortalListener._toggle</code></td><td>El portal solo deja su estado de grabación si <code>on_stop()</code> devuelve un valor verdadero.</td><td>Una parada aceptada devuelve True incluso si la captura se descarta por error; así la siguiente pulsación puede iniciar otra captura.</td></tr>
+<tr><td><code>tests/test_unit.py</code> · <code>test_intent_fallback_to_dictation</code>; <code>.github/workflows/ci.yml</code> · trabajo test</td><td>La suite usa dependencias ligeras y CI no instala NumPy, sounddevice ni PySide6. Las pruebas leídas no cubren el ciclo de AudioRecorder.</td><td>Ejercitar fallos de audio y callbacks reales con dobles de dispositivos y señales, sin dependencias de escritorio.</td></tr>
+</tbody></table><details><summary>Alcance de la evidencia</summary><p>Las reproducciones cargaron la clase AudioRecorder extraída del archivo mediante AST, con NumPy real y un sustituto de sounddevice. No abrieron hardware ni modificaron archivos. El bloqueo de la aplicación se diagnosticó por lectura de su flujo; debe reproducirse en las nuevas pruebas. No se ejecutó pytest: el intérprete inspeccionado carecía de pytest, httpx, sounddevice y ruff.</p><p>Otros consumidores examinados: <code>scripts/smoke_stt.py</code> usa AudioRecorder; <code>src/kwhisper/hotkey/evdev_listener.py:145</code> captura errores de callbacks pero no repara el estado de la aplicación. Mensajes reutilizables: <code>src/kwhisper/i18n.py:44</code> y <code>:224</code>, clave <code>mic.error</code>.</p></details></section>
+<section id="decisions"><h2>Decisiones cerradas</h2><table><thead><tr><th>Decisión</th><th>Motivo y alternativa descartada</th></tr></thead><tbody><tr><td>Una sola fase: grabador, aplicación y pruebas.</td><td>Arreglar únicamente el grabador dejaría sin recuperar el estado de la aplicación.</td></tr><tr><td>Descartar la captura cuando falla la parada.</td><td>Evita presentar audio parcial como una captura correcta. Recuperar fragmentos requeriría un contrato y una interfaz adicionales.</td></tr><tr><td>Reintento mediante una nueva pulsación.</td><td>Evita abrir el micrófono automáticamente después de un error y mantiene el control por atajo.</td></tr><tr><td>Conservar los errores originales y registrar fallos secundarios de cierre.</td><td>No ocultar la causa inicial con un error ocurrido durante la limpieza.</td></tr></tbody></table></section>
+<section id="phases"><h2>Fase de implementación</h2><article class="phase" id="phase-1"><div class="phase-header"><div><span class="phase-number">Fase 1 de 1</span><h3>Recuperación del ciclo de captura</h3></div><span class="status blocked">blocked</span></div><div class="phase-body"><p>Inicio: base registrada, sin correcciones aplicadas. Dependencias: ninguna fase previa. Efecto visible: volver a dictar después de un error recuperable de audio.</p>
+<table class="change-list"><thead><tr><th>Archivo y símbolo</th><th>Cambio preciso</th></tr></thead><tbody>
+<tr><td><code>src/kwhisper/audio.py</code><br><code>AudioRecorder.start</code></td><td>Proteger construcción e inicio. Si hay error, desactivar captura bajo el lock, intentar cerrar cualquier flujo creado, vaciar frames, poner nivel a cero y limpiar la referencia. Propagar el error inicial. No sostener el lock mientras PortAudio arranca o cierra: su callback también lo utiliza.</td></tr>
+<tr><td><code>src/kwhisper/audio.py</code><br><code>AudioRecorder.stop</code></td><td>Separar parada y cierre con limpieza garantizada para que close se intente aunque stop falle. Restablecer frames, nivel y referencia aun cuando close también falle. Mantener stop inactivo idempotente y salida float32 mono normalizada para capturas correctas. Restablecer el nivel después del cierre para que un callback tardío no lo deje distinto de cero.</td></tr>
+<tr><td><code>src/kwhisper/app.py</code><br><code>KWhisper._on_stop</code></td><td>Capturar fallos al detener el audio y al preparar o arrancar el trabajador. Registrar y notificar el fallo con mic.error para captura y error.generic para el arranque del trabajador. Emitir limpieza del overlay y estado idle/disabled antes de liberar _processing, siguiendo el orden de _process. Devolver True cuando la transición desde grabación se haya aceptado; False si no había grabación. No iniciar transcripción cuando stop falle.</td></tr>
+<tr><td><code>tests/test_audio.py</code> (nuevo)</td><td>Usar NumPy real y un módulo sounddevice simulado mediante monkeypatch. Importar el módulo real de producción; no copiar sus métodos. Cubrir fallos de construcción, inicio, stop, close y fallos dobles; comprobar cierre intentado, estado limpio y un ciclo posterior correcto. Cubrir conversión mono/estéreo y stop repetido.</td></tr>
+<tr><td><code>tests/test_recording_lifecycle.py</code> (nuevo)</td><td>Crear KWhisper sin ejecutar su constructor mediante __new__, con lock real, grabador y señales simuladas. Probar error de inicio, error de parada, fallo de arranque del trabajador, orden de señales y posibilidad de reintento. Probar _toggle del portal enlazado a los callbacks reales para verificar que la parada fallida aceptada no bloquea la siguiente activación.</td></tr>
+<tr><td><code>.github/workflows/ci.yml</code> · test</td><td>Añadir numpy al comando de instalación de dependencias ligeras. No añadir CUDA, PySide6 ni sounddevice: el dispositivo se simula. Conservar la matriz Python existente.</td></tr></tbody></table>
+<aside class="gate"><h4>Puerta de producción</h4><ul class="checks"><li>Las pruebas nuevas reproducen el defecto anterior y pasan con la corrección; la suite completa y Ruff pasan con los comandos de verificación.</li><li>Todo fallo simulado deja _recording=False, _processing=False, nivel cero y sin frames antiguos; una nueva pulsación permite una captura correcta.</li><li>El cierre se intenta ante error de parada; un fallo secundario no sustituye al error inicial.</li><li>El portal queda listo para iniciar después de una parada fallida y no se transcribe esa captura.</li><li>Completar en una sesión KDE con micrófono la comprobación manual descrita abajo. Sin ese entorno, registrar la validación pendiente y no declarar esta puerta cumplida.</li></ul></aside>
+<div class="triptych"><article><h4>Activación</h4><p>Aplicar la corrección completa y reiniciar kwhisper con el micrófono inactivo, tras completar las verificaciones.</p></article><article><h4>Observación</h4><p>Verificar notificación, retorno al estado disponible y siguiente dictado correcto; revisar logs de errores sin ciclos repetitivos de apertura.</p></article><article><h4>Reversión</h4><p>Revertir exclusivamente el commit de esta fase y reiniciar kwhisper. No hay datos ni configuración que restaurar. La reversión reintroduce los defectos originales.</p></article></div>
+<details class="execution-record"><summary>Registro de ejecución · blocked: validación de producción</summary><dl><dt>Inicio / fin</dt><dd>Inicio: 2026-09-05T10:35:05.159320+00:00; código y pruebas automáticas terminados: 2026-09-05T10:39:35.130216+00:00; validación manual pendiente.</dd><dt>Agente / sesión</dt><dd>Codex /root.</dd><dt>Commit / cambio</dt><dd>Cambios locales sin commit sobre 0a92ee864d1008a7ead5e4e583910bf1f84c03bd; consultar git diff y los archivos nuevos de tests.</dd><dt>Archivos y símbolos reales</dt><dd>src/kwhisper/audio.py: AudioRecorder._callback, start, stop; src/kwhisper/app.py: KWhisper._on_stop; tests/test_audio.py y tests/test_recording_lifecycle.py (nuevos); .github/workflows/ci.yml: dependencia numpy del trabajo test.</dd><dt>Comandos y resultados</dt><dd>Intérprete: /tmp/kwhisper-test-venv/bin/python (Python 3.12.13). pytest tests/test_audio.py tests/test_recording_lifecycle.py: antes 17 fallos y 2 éxitos; después 19 éxitos. pytest: 54 éxitos. ruff check tests/test_audio.py tests/test_recording_lifecycle.py: correcto. ruff check . (0.16.6): 49 avisos; comparación automatizada por archivo, código y mensaje con una copia de HEAD: los mismos 49, ninguno nuevo. git diff --check: correcto. Pruebas reproducibles en los archivos nuevos; registro previo temporal en /tmp/kwhisper-before-tests.log.</dd><dt>Desviaciones y decisiones nuevas</dt><dd>Sin cambio de alcance. _callback actualiza el nivel bajo el lock solo mientras graba para impedir que callbacks tardíos reactiven el medidor. Entorno de pruebas aislado en /tmp; descarga autorizada tras fallo DNS en sandbox. No se corrigieron los avisos ajenos al alcance.</dd><dt>Riesgos restantes</dt><dd>No existe /dev/snd en el entorno; sounddevice no está instalado. Se validaron dispositivos simulados y callbacks reales, incluido el portal sin D-Bus. No se abrió el micrófono ni se reinició la aplicación del usuario. La puerta exige hardware real y Ruff limpio: Ruff ya pasa tras la corrección posterior; la comprobación con hardware queda pendiente; el código y las pruebas automatizadas están completos.</dd><dt>Siguiente paso</dt><dd>Ejecutar la comprobación manual de la sección Verificación en KDE con micrófono. Los avisos de Ruff se corrigieron en el seguimiento autorizado por el usuario; no marcar done mientras siga pendiente la comprobación con hardware.</dd></dl></details></div></article></section>
+<section id="verification"><h2>Verificación</h2><p>En un entorno de desarrollo con las dependencias ligeras de CI y NumPy instaladas, desde la raíz del repositorio:</p><pre><code>python -m pytest tests/test_audio.py tests/test_recording_lifecycle.py
+python -m pytest
+python -m ruff check .
+git diff --check</code></pre><p>La implementación debe preparar un entorno aislado si faltan herramientas. La investigación no instaló dependencias. Mantener la matriz de CI en Python 3.11, 3.12 y 3.13.</p><h3>Comprobación manual en KDE</h3><ol><li>Con la aplicación corregida, provocar un fallo recuperable del micrófono al iniciar o detener una captura y observar el mensaje de error y la retirada del overlay.</li><li>Restablecer la disponibilidad del dispositivo. Pulsar de nuevo el atajo, dictar una frase breve y comprobar que se pega correctamente sin reiniciar el proceso.</li><li>Repetir con evdev y con el portal en modo toggle. Confirmar que el primer atajo posterior al error inicia una nueva captura.</li><li>Comprobar una captura normal con ambos mecanismos y revisar los logs. Restaurar la configuración temporal utilizada en la prueba.</li></ol><p>Si el entorno no permite inducir un fallo de hardware de forma repetible, registrar exactamente qué casos se validaron por simulación y qué comprobación real sigue pendiente.</p></section>
+<section id="risks"><h2>Riesgos que requieren atención</h2><table><thead><tr><th>Riesgo</th><th>Señal</th><th>Mitigación</th></tr></thead><tbody><tr><td>Bloqueo entre callback y cierre (<code>audio.py:58</code>).</td><td>La parada no retorna.</td><td>No cerrar ni parar el dispositivo mientras se mantiene el lock del callback.</td></tr><tr><td>Estado visual antiguo sobre una grabación nueva (<code>app.py:291</code>).</td><td>Overlay oculto o idle durante una captura.</td><td>Limpiar señales antes de liberar _processing, con una prueba de orden.</td></tr><tr><td>Desincronización del portal (<code>portal_listener.py:87</code>).</td><td>La siguiente pulsación intenta detener una captura inexistente.</td><td>Preservar el contrato booleano de transición aceptada y probar callbacks integrados.</td></tr><tr><td>Un driver no libera el recurso aunque se invoque close.</td><td>El siguiente intento también falla.</td><td>Conservar diagnóstico y volver a notificar; no prometer reparación del hardware ni introducir reintentos automáticos. Validar con dispositivo real.</td></tr></tbody></table></section>
+<section id="ruff-followup"><h2>Seguimiento: corrección de Ruff</h2><p>2026-09-05 · El usuario indicó que GitHub seguía mostrando problemas de Ruff. Se amplió el trabajo para corregir los 49 diagnósticos preexistentes y actualizar la PR #13.</p><p>Se eliminaron supresiones innecesarias y duplicados, se ordenaron imports, se explicitó check=False conservando el comportamiento de subprocess, se añadieron logs de errores de limpieza y se conservó la hora local al obtener una fecha con zona horaria. scripts/smoke_stt.py tiene permiso de ejecución.</p><p>Verificación local: /tmp/kwhisper-test-venv/bin/python -m ruff check . pasa; python -m pytest con ese intérprete: 54 pruebas pasan; git diff --check pasa. La validación de micrófono real continúa pendiente.</p></section>
+<footer>Plan autónomo · Especificación y registro separados · Sin JavaScript ni recursos externos</footer>
+</main></body></html>

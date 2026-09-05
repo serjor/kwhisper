@@ -107,24 +107,24 @@ class EvdevListener:
             for d in devices:
                 try:
                     d.close()
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception:
+                    log.debug("Could not close keyboard device", exc_info=True)
 
     @staticmethod
-    def _drop_device(sel, devices: list, dev) -> None:  # noqa: ANN001
+    def _drop_device(sel, devices: list, dev) -> None:
         try:
             sel.unregister(dev)
         except KeyError:
             pass
         try:
             dev.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("Could not close disconnected keyboard", exc_info=True)
         if dev in devices:
             devices.remove(dev)
         log.warning("Keyboard disconnected: %s", getattr(dev, "path", "?"))
 
-    def _reconnect(self, sel) -> list:  # noqa: ANN001
+    def _reconnect(self, sel) -> list:
         """Reopen devices with backoff after a USB disconnect."""
         delay = 1.0
         while not self._stop_evt.is_set():
@@ -145,7 +145,7 @@ class EvdevListener:
     def _safe(fn: Callable[[], None]) -> None:
         try:
             fn()
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error in hotkey callback")
 
     def start(self) -> None:

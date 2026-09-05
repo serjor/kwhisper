@@ -209,11 +209,11 @@ class TextInjector:
         try:
             mime = ""
             types = subprocess.run(["wl-paste", "--list-types"],
-                                   capture_output=True, text=True, timeout=3)
+                                   check=False, capture_output=True, text=True, timeout=3)
             if types.returncode == 0 and types.stdout.strip():
                 mime = _pick_clipboard_type(types.stdout)
             cmd = ["wl-paste", "-n", *(["-t", mime] if mime else [])]
-            out = subprocess.run(cmd, capture_output=True, timeout=10)
+            out = subprocess.run(cmd, check=False, capture_output=True, timeout=10)
             if out.returncode != 0:
                 return (None, None, True)  # empty clipboard (confirmed)
             return (out.stdout, mime or None, True)

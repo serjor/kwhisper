@@ -64,7 +64,7 @@ _STOPWORDS = {
     "sus", "me", "te", "se", "nos", "os", "le", "les", "yo", "tú", "él", "ella",
     "ello", "ellos", "ellas", "nosotros", "vosotros", "usted", "ustedes",
     "es", "son", "era", "fue", "ser", "estar", "está", "están", "hay", "he",
-    "ha", "han", "su", "del", "uno", "dos", "tres", "cosa", "cosas", "hacer",
+    "ha", "han", "uno", "dos", "tres", "cosa", "cosas", "hacer",
     "todo", "toda", "todos", "todas", "otro", "otra", "otros", "otras", "cada",
     "mucho", "mucha", "poco", "poca", "tan", "tanto", "aquí", "ahí", "allí",
     "ahora", "luego", "después", "antes", "siempre", "nunca", "bien", "mal",

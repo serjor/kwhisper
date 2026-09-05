@@ -266,7 +266,7 @@ class CommandExecutor:
                 self._spawn([binary])
                 return t("cmd.opening", app=binary)
             return t("cmd.app_not_found", app=name)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.exception("Failed to open %s", name)
             return t("cmd.open_error", app=name, error=exc)
 
@@ -309,7 +309,7 @@ class CommandExecutor:
                 except (ProcessLookupError, PermissionError):
                     pass  # gone or not ours; nothing to do
             return t("cmd.closing", app=name)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.exception("Failed to close %s", name)
             return t("cmd.close_error", app=name, error=exc)
 
