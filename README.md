@@ -1,30 +1,29 @@
-# kwhisper
+# kwhisper — local voice dictation for KDE Plasma and Wayland
 
 **Languages:** [English](README.md) · [Español](README.es.md)
 
-**Local, private voice dictation for Linux** — a free & open-source alternative to
-Wispr Flow, Dragon and cloud "voice typing". Hold a key, speak, release → the text
-appears in whatever window is focused. **Everything runs on your machine: your
-voice never leaves your computer.** Polished on **KDE Plasma 6 (Wayland)**, but the
-core dictation runs without an NVIDIA GPU too.
+**kwhisper turns speech into text and pastes it into the focused application on
+your Linux desktop.** Hold a key, speak and release: speech recognition runs
+locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper).
+It is designed for **KDE Plasma 6 on Wayland**, with an installer for **Arch Linux
+and CachyOS**, and is free and open-source software under [MPL-2.0](LICENSE).
 
-<!-- TODO: a 20–30 s demo (GIF/WebM) belongs right here — it's worth more than any
-     paragraph. Show: dictating a sentence with accents, an "open firefox" command,
-     and the spoken question mode.   ![kwhisper demo](docs/demo.gif)  -->
+If you are looking for voice typing or a local alternative to tools such as
+Wispr Flow or Dragon on KDE, that is the use case. Supported platforms and
+features are listed below; this is not a claim of feature parity.
 
-An **optional** local LLM decides whether what you said is **dictation** (it gets
-typed) or a **command** (it gets executed: open apps, press keys). Turn it off and
-you get plain, fully private dictation.
+- **Whisper dictation**: NVIDIA CUDA or explicitly configured CPU inference.
+- **Optional voice control with Ollama**: punctuation correction, opening or
+  closing applications, and key presses. `gemma3` is the default model.
+- **Activation**: `evdev` push-to-talk, or a portal shortcut in toggle mode.
+- **KDE integration**: clipboard paste, terminal detection, system tray and overlay.
+- **Personal dictionary**: custom vocabulary and recurring transcription fixes.
+- **Optional spoken answers**: Piper (default), Kokoro or Chatterbox;
+  text-to-speech is disabled by default.
 
-- **STT**: `faster-whisper` — an NVIDIA GPU gives near-instant results, or it runs
-  on **CPU** if you don't have one.
-- **Dictation/command classification** *(optional)*: Ollama (`gemma3`).
-- **Activation**: push-to-talk via `evdev` (hold the key down).
-- **Injection**: clipboard + `Ctrl+V` (Spanish accents 100% reliable in KWin).
-- **UI**: tray icon + floating overlay + sounds.
-- **Voice (TTS, optional)**: reads confirmations and answers questions aloud
-  (Piper in Castilian Spanish, or Kokoro/Chatterbox) from an isolated subprocess.
-  Off by default.
+**Start here:** [Installation](#installation) · [CPU-only setup](#cpu-only-dictation) ·
+[Usage](#usage) · [Privacy](#privacy-and-offline-use) ·
+[Configuration](#configuration) · [Report an issue](https://github.com/serjor/kwhisper/issues)
 
 ## What's supported
 
@@ -33,8 +32,8 @@ breakdown so you know what to expect before installing:
 
 | Setup | Status |
 |---|---|
-| KDE Plasma 6 Wayland · NVIDIA (incl. Blackwell `sm_120`) · PipeWire | ✅ **Verified** — near-instant dictation, overlay, terminal detection, reliable accents |
-| KDE Plasma 6 Wayland · **no NVIDIA / CPU-only** | 🟡 **Works (CPU fallback)** — set `[stt] device = "cpu"`, `compute_type = "int8"` and a smaller model (`small` is the sweet spot). Verified: `small` transcribes at ~0.2× real-time on a modern multi-core CPU (i.e. several times faster than you speak), accents intact. Not the author's daily GPU path, but usable day-to-day |
+| KDE Plasma 6 Wayland · NVIDIA (incl. Blackwell `sm_120`) · PipeWire | ✅ **Author's primary environment** — dictation, overlay and terminal detection; latency depends on hardware and model |
+| KDE Plasma 6 Wayland · **no NVIDIA / CPU-only** | **Configurable** — set `device = "cpu"`, `compute_type = "int8"` and a model such as `small`. There is no automatic CUDA-to-CPU fallback; performance depends on hardware |
 | Other Wayland compositors (GNOME, Sway…) | 🧪 **Experimental** — basic paste (wl-clipboard + ydotool) may work, but the **anchored overlay and terminal detection rely on KWin**. Untested |
 | X11 | ❌ Not targeted |
 
@@ -49,8 +48,7 @@ Three Wayland/Blackwell pitfalls that shape the design:
 
 1. **Blackwell GPU (`sm_120`)**: `faster-whisper` works, but **you have to use
    `float16`** — INT8 gives `CUBLAS_STATUS_NOT_SUPPORTED` on RTX 50xx with old
-   CTranslate2. The CUDA 12 wheels run on your driver 610 thanks to backward
-   compatibility.
+   CTranslate2. The default configuration uses `float16`.
 2. **Push-to-talk**: KDE's shortcut portal **loses the key-release event** if you
    type while dictating (KWin bug 483183). That's why the keyboard is read with
    **`evdev`** (requires the `input` group). The portal remains as a *fallback*
@@ -67,17 +65,20 @@ Three Wayland/Blackwell pitfalls that shape the design:
 - A **Wayland session** (KDE Plasma 6 recommended — that's where the overlay,
   terminal detection and accents are verified). Arch/CachyOS is the tested base.
 - A **microphone** and PipeWire.
-- **GPU optional**: an NVIDIA GPU (recent driver; tested on the 50xx series, 16 GB
-  VRAM is plenty) gives near-instant dictation. Without one, kwhisper falls back to
-  CPU — slower, so pick a smaller model (`small`/`medium`).
+- **Python 3.11 or later** and PySide6 (the installer uses the system package).
+- **GPU optional**: CUDA is enabled by default. Without an NVIDIA GPU, configure
+  [CPU-only dictation](#cpu-only-dictation) before starting the application.
 - `uv`, `pipewire`. **`ollama` (with `gemma3`) is optional** — it only adds command
   classification and punctuation fixing; set `[llm] enabled = false` for raw dictation.
 
 ## Installation
 
-```fish
-# Clone it WHEREVER YOU WANT: setup.sh detects the path automatically.
-cd /path/where/you/cloned/kwhisper
+The installer uses `pacman` and targets Arch Linux/CachyOS; it is not a universal
+Linux installer. Install Git and `uv` first.
+
+```bash
+git clone https://github.com/serjor/kwhisper.git
+cd kwhisper
 bash scripts/setup.sh
 ```
 
@@ -137,26 +138,27 @@ bash scripts/test_inject.sh
    - **Dictation** → the text is pasted into the focused window.
    - **Command** → it gets executed (notification with the result).
 
-Command examples (natural language):
+Command examples (Spanish, matching the built-in prompts):
 
 | You say | Action |
 |---|---|
-| «open firefox» | launches Firefox |
-| «launch the konsole terminal» | opens Konsole |
-| «press enter» | sends Return |
-| «last year I went to Spain» | the text is **dictated** |
+| «abre firefox» | launches Firefox |
+| «lanza la terminal konsole» | opens Konsole |
+| «pulsa enter» | sends Return |
+| «el año pasado fui a España» | the text is **dictated** |
 
 > When in doubt, the classifier types it (dictation). If Ollama isn't available,
 > kwhisper keeps working as dictation only.
 
 ### Voice (TTS) — optional
 
-With `[tts] enabled = true` (install the extra first, see Installation):
+With `[tts] enabled = true` (install the extra first, see Installation),
+plus `[tts] speak_answers = true` and `[llm] enabled = true` for question mode:
 
-- **Spoken feedback**: command confirmations are read aloud (Kokoro).
+- **Spoken feedback**: command confirmations are read aloud using the configured engine (Piper by default).
 - **Question mode**: if you open with an activation phrase ("oye asistente …",
   "oye kwhisper …"), what follows is sent to the LLM and the answer is **read**
-  (not typed). E.g. "oye asistente, ¿qué hora es?". Press PTT again to cut a long
+  (not typed). E.g. "oye asistente, explica qué es una variable". Press PTT again to cut a long
   answer (barge-in).
 
 The neural engines run in an **isolated subprocess** so torch (Chatterbox) can't
@@ -177,6 +179,48 @@ You teach it from the tray:
   macOS/Windows), so you bring the text to the dialog; the learning is automatic.
 - **Edit dictionary…** — open the TOML to add or prune terms by hand (restart the
   daemon after manual edits).
+
+## CPU-only dictation
+
+Edit or create `~/.config/kwhisper/config.toml` before starting kwhisper. If the
+file already contains these sections, update their values instead of duplicating them:
+
+```toml
+[stt]
+device = "cpu"
+compute_type = "int8"
+model = "small"
+language = "en"
+
+[llm]
+enabled = false
+```
+
+This enables raw dictation without Ollama. The installer still downloads CUDA
+dependencies: CPU configuration changes inference, not the package contents.
+
+## Privacy and offline use
+
+Audio is captured in memory and transcribed locally by Whisper. Once the models
+are downloaded, dictation and optional features can run without cloud AI services
+when Ollama uses its default local host (`http://127.0.0.1:11434`). Installation
+and initial model downloads require an internet connection.
+
+If you set `[llm] host` to a remote server, transcriptions and questions are sent
+to that server. The code logs transcription excerpts at INFO level; the personal
+dictionary is stored on disk, and text insertion uses the clipboard. Keep this
+in mind when sharing diagnostics.
+
+## Languages and assistant scope
+
+The interface supports English and Spanish. Whisper supports other languages
+through `[stt] language` (for example `"en"`, or `""` for automatic detection), but
+the built-in command and question prompts target Spanish. Changing the interface
+language does not translate those prompts.
+
+Question mode is triggered within a user-started recording, not by an always-on
+wake-word listener. It generates answers through Ollama; it does not browse the
+web or use tools to retrieve the current time or live information.
 
 ## Configuration
 

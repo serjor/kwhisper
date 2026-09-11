@@ -1,11 +1,24 @@
 [project]
 name = "kwhisper"
 version = "0.1.0"
-description = "Dictado por voz local estilo Wispr Flow para KDE Plasma 6 (Wayland) — STT con faster-whisper + clasificación dictado/comando con Ollama"
+description = "Local voice dictation for KDE Plasma on Wayland, with faster-whisper and optional Ollama voice commands"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MPL-2.0" }
 authors = [{ name = "serjor" }]
+keywords = [
+    "voice-dictation", "speech-to-text", "voice-typing", "linux", "kde",
+    "wayland", "whisper", "faster-whisper", "ollama", "offline",
+]
+classifiers = [
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 dependencies = [
     # --- STT (CUDA, Blackwell sm_120: usar float16) ---
     "faster-whisper>=1.2.1",
@@ -54,6 +67,7 @@ tts-chatterbox = [
 [project.urls]
 Homepage = "https://github.com/serjor/kwhisper"
 Repository = "https://github.com/serjor/kwhisper"
+Documentation = "https://github.com/serjor/kwhisper#readme"
 Issues = "https://github.com/serjor/kwhisper/issues"
 
 [project.scripts]
